@@ -1,0 +1,10 @@
+frontend/dist/
+node_modules/
+*.log
+.DS_Store
+.claude/
+.agents/
+junit.xml
+coverage/
+frontend/bundle-size.json
+.env
