@@ -11,8 +11,7 @@
 import { EXIDX, isBodyweightEq } from './exercises.js'
 import { cleanUrl } from './media-refs.js'
 import { modeOf, exLine, MAX_PLANNED_WARMUPS } from './history.js'
-import { deriveSessionName } from './session-merge.js'
-import { uid, todayISO, DAYN, weekOrder, weekStartOf, exCount } from './format.js'
+import { uid, todayISO, exCount } from './format.js'
 import { t, exerciseNameFor, exerciseNameClass, getLang, RTL_LANGS } from './i18n-core.js'
 import { convertWeight } from './units.js'
 import { fmtSpeed, speedUnitOf } from './speed.js'
@@ -357,22 +356,9 @@ function routineHTML(r, unit, { bare = false, speedUnit } = {}) {
   </section>`
 }
 
-function weekHTML(S) {
-  // The printout is read by whoever exported it, so the week runs in their order.
-  const rows = weekOrder(weekStartOf(S)).map(d => {
-    const names = [].concat(S.week?.[d] || [])
-      .map(id => S.routines.find(x => x.id === id)?.name)
-      .filter(Boolean)
-    const val = names.length ? esc(deriveSessionName(names)) : `<span class="rest">${esc(t('Rest'))}</span>`
-    return `<div class="w-row"><div class="w-day">${esc(t(DAYN[d]))}</div><div class="w-r">${val}</div></div>`
-  }).join('')
-  return `<div class="week">${rows}</div>`
-}
-
 /**
  * Full self-contained HTML for the print/PDF view. With `routineId` it is that one routine on
- * its own page (#282) — the session you take to the gym, not the week around it — so the week
- * schedule is left out and the routine's name is the page title.
+ * its own page (#282) — the session you take to the gym — so the routine's name is the page title.
  */
 export function planPrintHTML(S, owner, { routineId } = {}) {
   const unit = S.unit || 'kg'
@@ -383,9 +369,7 @@ export function planPrintHTML(S, owner, { routineId } = {}) {
     : `<p class="none">${esc(t('No routines yet.'))}</p>`
   const title = single ? single.name : t('Weekly Training Plan')
   const sub = [single ? exCount(single.ex.length) : null, owner, todayISO()].filter(Boolean).map(esc).join(' · ')
-  const week = routineId ? '' : `<h3 class="block">${esc(t('Week schedule'))}</h3>
-  ${weekHTML(S)}
-  <h3 class="block">${esc(t('Routines'))}</h3>`
+  const week = routineId ? '' : `<h3 class="block">${esc(t('Routines'))}</h3>`
   return `<!doctype html><html lang="${getLang()}" dir="${RTL_LANGS.has(getLang()) ? 'rtl' : 'ltr'}"><head><meta charset="utf-8">
 <title>${esc(title)}</title>
 <style>

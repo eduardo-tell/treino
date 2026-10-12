@@ -1,6 +1,6 @@
 # openGym
 
-Acompanhamento de treino e peso corporal que roda **só no navegador**. Sem servidor, sem conta. Os dados ficam neste aparelho (`localStorage` e IndexedDB).
+Acompanhamento de treino que roda **só no navegador**. Sem servidor, sem conta. Os dados ficam neste aparelho (`localStorage` e IndexedDB).
 
 Licença: [AGPL-3.0-or-later](LICENSE).
 

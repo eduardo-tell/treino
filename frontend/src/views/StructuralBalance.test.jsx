@@ -121,27 +121,19 @@ describe('StructuralBalance view', () => {
     expect([...after.querySelectorAll('button')].some(b => b.textContent.includes('Use default exercise'))).toBe(false)
   })
 
-  it('asks for a weigh-in on a row that only lacks one, with a way to log it', () => {
+  it('does not ask to log body weight, and still scores a lift once a weight is already stored', () => {
     const S = clone(DEF)
     S.balanceTemplate = 'atg'
     S.workouts = [workoutAt('0085', Date.now(), [setDoneSet(80, 12)])]
     useStore.setState({ S, user: null })
     const host = render()
     const rdl = host.querySelector('[data-role-id="romanianDeadlift"]')
-    expect(rdl.dataset.status).toBe('no-data')
-    expect(rdl.textContent).toContain('Log your body weight to score this lift.')
-    expect(host.querySelector('[data-role-id="goodMorning"] [data-needs-bodyweight]')).toBe(null)
-    const log = [...rdl.querySelectorAll('button')].find(b => b.textContent.includes('Log body weight'))
-    // Two buttons side by side squeeze each other's labels onto two lines at 360 px (Hungarian):
-    // the row wraps them instead.
-    expect(log.parentElement.style.flexWrap).toBe('wrap')
-    act(() => log.click())
-    expect(useUI.getState().sheets.length).toBe(1)
+    expect(rdl.textContent).not.toContain('Log your body weight to score this lift.')
+    expect([...rdl.querySelectorAll('button')].some(b => b.textContent.includes('Log body weight'))).toBe(false)
 
     act(() => useStore.getState().update(s => { s.bodyweight.push({ d: '2026-01-01', w: 80, t: 1 }) }))
     const scored = host.querySelector('[data-role-id="romanianDeadlift"]')
     expect(scored.dataset.status).toBe('balanced')
-    expect(scored.querySelector('[data-needs-bodyweight]')).toBe(null)
     expect([...scored.querySelectorAll('button')].some(b => b.textContent.includes('Log body weight'))).toBe(false)
   })
 

@@ -10,7 +10,7 @@ import { setNav } from './lib/nav.js'
 import { useWakeLock } from './lib/wakelock.js'
 import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
-import { exitWorkoutEdit, startFlow } from './sheets.jsx'
+import { exitWorkoutEdit } from './sheets.jsx'
 import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
@@ -127,7 +127,7 @@ function Shell() {
           </Routes>
         </ErrorBoundary>
       </div>
-      <TabBar onStart={startFlow} />
+      <TabBar />
       <RestTimer />
       <Modals />
       <Toast />

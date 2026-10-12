@@ -18,10 +18,11 @@ const S = {
 const text = html => html.replace(/<style>[\s\S]*?<\/style>/, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
 
 describe('planPrintHTML', () => {
-  it('prints the week and every routine by default', () => {
+  it('prints every routine and leaves the week schedule out', () => {
     const html = planPrintHTML(S, 'Ana')
     expect(html).toContain('<title>Weekly Training Plan</title>')
-    expect(text(html)).toContain('Week schedule')
+    expect(text(html)).not.toContain('Week schedule')
+    expect(text(html)).not.toContain('Monday')
     expect(text(html)).toContain('Push day')
     expect(text(html)).toContain('Pull day')
   })

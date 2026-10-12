@@ -48,13 +48,14 @@ afterEach(() => {
 })
 
 const mount = () => act(() => root.render(<Plan />))
-const countOn = day => [...host.querySelectorAll('.item')].find(el => el.querySelector('.tt')?.textContent === day)?.querySelector('.small.dim')?.textContent
 
-describe('Plan — the day header counts its routines', () => {
-  it('uses the singular for one routine and the plural for more', () => {
+describe('Plan — routines, without a week schedule', () => {
+  it('lists routines and does not draw weekdays', () => {
     mocks.S.week = { 1: ['r1'], 2: ['r1', 'r2'] }
     mount()
-    expect(countOn('Monday')).toBe('1 routine')
-    expect(countOn('Tuesday')).toBe('2 routines')
+    expect(host.textContent).not.toContain('Week schedule')
+    expect(host.textContent).not.toContain('Monday')
+    expect(host.textContent).toContain('Push')
+    expect(host.textContent).toContain('Pull')
   })
 })

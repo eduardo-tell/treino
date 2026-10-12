@@ -4,7 +4,7 @@ This file provides guidance when working with code in this repository.
 
 ## What this is
 
-openGym is a gym & body-weight tracker that runs only in the browser. No API, no
+openGym is a gym tracker that runs only in the browser. No API, no
 Docker stack, no Capacitor / Android / iOS app. Training data lives in
 `localStorage` (`gym_state_v1`); custom photos and videos live in IndexedDB.
 License: AGPL-3.0-or-later. GitHub Pages serves the Vite production build.

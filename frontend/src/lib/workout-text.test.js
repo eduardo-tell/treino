@@ -27,7 +27,7 @@ describe('workoutText', () => {
   it('reads as the heading, each exercise with its work sets, supersets together, then the note', () => {
     expect(workoutText(w, { unit: 'kg', nameOf })).toBe([
       `Push — ${fmtDate('2026-09-03', true, true)}`,
-      '58 min · 1,790 kg · Body weight 80 kg',
+      '58 min · 1,790 kg',
       '',
       'Barbell Bench Press',
       '60×8, 60×6 ↘ 45×6',

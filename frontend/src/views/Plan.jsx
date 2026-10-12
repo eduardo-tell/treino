@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { DAYN, weekOrder, weekStartOf, uid, exCount, routineCount } from '../lib/format.js'
+import { uid, exCount } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
-import { dayAssignSheet, dayAddRoutineSheet, starterPlanSheet, planToolsSheet, confirmSheet } from '../sheets.jsx'
+import { starterPlanSheet, planToolsSheet, confirmSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import SwipeToDelete from '../components/SwipeToDelete.jsx'
@@ -30,12 +30,6 @@ export default function Plan() {
     nav('/plan/r/' + r.id)
   }
 
-  // Pull one routine off a weekday; drop the key when the day empties (never store []).
-  const removeFromDay = (d, rid) => update(s => {
-    const next = [].concat(s.week[d] || []).filter(id => id !== rid)
-    if (next.length) s.week[d] = next; else delete s.week[d]
-  })
-
   // The same confirmation and the same delete as RoutineEdit's "Delete routine" button, minus
   // its navigation back to /plan, which this screen already is.
   const confirmDelete = r => confirmSheet({
@@ -45,43 +39,11 @@ export default function Plan() {
 
   return <>
     <div className="hdr">
-      <div><h1>{t('Plan')}</h1><div className="sub">{t('Your weekly routine')}</div></div>
+      <div><h1>{t('Plan')}</h1><div className="sub">{t('Routines')}</div></div>
       <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
     </div>
 
     <div className="cols"><div>
-      <h4 className="sec">{t('Week schedule')}</h4>
-      <div className="list" style={{ display: 'flex', flexDirection: 'column' }}>
-        {weekOrder(weekStartOf(S)).map(d => {
-          const dayRoutines = [].concat(S.week[d] || []).map(id => S.routines.find(x => x.id === id)).filter(Boolean)
-          // An empty day stays one tappable row → pick its first routine (today's behaviour).
-          if (!dayRoutines.length) return <div key={d} className="item" {...tappable(() => dayAssignSheet(d))}>
-            <div className="grow"><div className="tt">{t(DAYN[d])}</div></div>
-            <span className="tag">{t('Rest')}</span>
-            <Icon name="chevronRight" className="chev" /></div>
-          // A populated day: always-visible routine sub-rows + inline ✕. Adding a second routine
-          // is a small ＋ in the day's header, centred over the ✕ column (#276): a full-width
-          // "＋ Add routine" under every planned day made the week read as a list of buttons,
-          // when most people train one routine a day. The ＋ keeps the option for those who don't.
-          return <div key={d} className="item" style={{ display: 'block', padding: '10px 14px' }}>
-            <div className="row between" style={{ marginBottom: 6 }}>
-              <div className="tt">{t(DAYN[d])}</div>
-              <div className="row" style={{ gap: 8 }}>
-                <div className="small dim">{routineCount(dayRoutines.length)}</div>
-                <button className="iconbtn sm" aria-label={t('Add routine')} title={t('Add routine')}
-                  style={{ width: 30, height: 30, margin: '-5px 3px', fontSize: 15 }}
-                  onClick={() => dayAddRoutineSheet(d)}><Icon name="plus" /></button>
-              </div>
-            </div>
-            {dayRoutines.map(r => <div key={r.id} className="row" style={{ gap: 8, padding: '4px 0 4px 8px' }}>
-              <span className="lrow-i" style={{ width: 26, height: 26, fontSize: 14 }}><Icon name={glyphOf(r.emoji)} /></span>
-              <div className="grow" style={{ minWidth: 0 }}><div className="tt" style={{ fontSize: 14 }}>{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
-              <button className="iconbtn sm" aria-label={t('Remove')} onClick={() => removeFromDay(d, r.id)}><Icon name="xmark" /></button>
-            </div>)}
-          </div>
-        })}
-      </div>
-    </div><div>
       <div className="row between" style={{ marginTop: 22, marginBottom: 10 }}>
         <h4 className="sec" style={{ margin: 0 }}>{t('Routines')}</h4>
         <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New')}</Button>

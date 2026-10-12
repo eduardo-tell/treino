@@ -7,8 +7,7 @@ import Home from './Home.jsx'
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('../sheets.jsx', () => ({
-  starterPlanSheet: vi.fn(), bwSheet: vi.fn(), goalSheet: vi.fn(), dayOverrideSheet: vi.fn(),
-  calendarSheet: vi.fn(), startFlow: vi.fn(), bwDeltaColor: () => '',
+  starterPlanSheet: vi.fn(), calendarSheet: vi.fn(),
 }))
 
 let host, root
@@ -20,28 +19,13 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); host.remove() })
 
-const mountWith = showWeightCard => {
-  useStore.setState(s => ({
-    S: { ...s.S, routines: [], workouts: [], bodyweight: [], dayPlan: {}, week: {}, active: null, showWeightCard },
-    user: null,
-  }))
-  act(() => root.render(<Home />))
-}
-const weightHeading = () => [...host.querySelectorAll('h2')].find(el => el.textContent === 'Body weight')
-
-describe('Home body-weight card preference', () => {
-  it('shows the card for legacy profiles without the preference', () => {
-    mountWith(undefined)
-    expect(weightHeading()).toBeTruthy()
-  })
-
-  it('shows the card when enabled', () => {
-    mountWith(true)
-    expect(weightHeading()).toBeTruthy()
-  })
-
-  it('hides only the Home card when disabled', () => {
-    mountWith(false)
-    expect(weightHeading()).toBeFalsy()
+describe('Home', () => {
+  it('does not show a body-weight card', () => {
+    useStore.setState(s => ({
+      S: { ...s.S, routines: [], workouts: [], bodyweight: [{ d: '2026-09-01', w: 80, t: 1 }], dayPlan: {}, week: {}, active: null },
+      user: null,
+    }))
+    act(() => root.render(<Home />))
+    expect([...host.querySelectorAll('h2')].some(el => el.textContent === 'Body weight')).toBe(false)
   })
 })

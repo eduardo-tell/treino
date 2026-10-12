@@ -9,9 +9,9 @@ import { usesBar, defaultBarWeight, hasBarOverride, isNoBar } from './lib/bar.js
 import { PLATE_SIZES, pairsOf, ownsPlates, withPlatePairs, withStandardPlates, withLoadKind, loadKindFor, baseWeightFor, dropGrid } from './lib/plates.js'
 import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
 import { beep, vibrate } from './lib/sound.js'
-import { t, dateLocale, instrFor, exerciseNameFor, exerciseNameClass } from './lib/i18n.js'
+import { t, instrFor, exerciseNameFor, exerciseNameClass } from './lib/i18n.js'
 import { nav } from './lib/nav.js'
-import { buildStarterPlan, starterPlanDays, starterPlanOptions } from './lib/starter.js'
+import { buildStarterPlan, starterPlanOptions } from './lib/starter.js'
 import Media, { Thumb } from './components/Media.jsx'
 import CustomMediaField from './components/CustomMediaField.jsx'
 import WorkoutMediaSection, { workoutMediaCount } from './components/WorkoutMedia.jsx'
@@ -134,49 +134,27 @@ const PLAN_COPY = {
   '5x5': () => ({ name: t('5×5'), about: t('Five sets of five on the main barbell lifts.') })
 }
 
-// Adds the plan's routines and puts them on its weekdays. Existing routines are never touched
-// and only the weekdays the plan asks for are reassigned; an id with no plan behind it changes
-// nothing at all. planId is deliberately required — a default invites `onClick={loadStarterPlan}`,
-// which hands the click event in as the plan and silently loads nothing.
+// Adds the plan's routines. Existing routines are never touched. planId is deliberately
+// required — a default invites `onClick={loadStarterPlan}`, which hands the click event in
+// as the plan and silently loads nothing.
 export function loadStarterPlan(planId) {
   const plan = buildStarterPlan(planId)
   if (!plan) return false
-  update(st => {
-    st.routines.push(...plan.routines)
-    plan.schedule.forEach(({ day, routineId }) => { st.week[day] = [routineId] })
-  })
+  update(st => { st.routines.push(...plan.routines) })
   toast(t('{0} loaded', PLAN_COPY[planId]().name))
   return true
 }
 
-// Intl joins the days the way each language does it — "and" vs "und", "、" in Chinese.
-const dayList = days => new Intl.ListFormat(dateLocale()).format(days.map(d => t(DAYN[d])))
-
 function StarterPlanChooser({ close }) {
-  const week = useStore(s => s.S.week)
-  const routines = useStore(s => s.S.routines)
-  const choose = (id, name) => {
-    const days = starterPlanDays(id)
-    close()
-    // A confirmation is only worth showing when one of those days is actually occupied — by a
-    // routine that still exists, not by a stale id the Plan already shows as "Rest".
-    const taken = day => [].concat(week[day] || []).some(id => routines.some(r => r.id === id))
-    if (!days.some(taken)) { loadStarterPlan(id); return }
-    confirmSheet({
-      title: t('Load {0}?', name),
-      message: t('The new plan will be scheduled on {0}. Existing routines are kept — only those days of the weekly plan change.', dayList(days)),
-      confirmText: t('Load plan'),
-      onConfirm: () => loadStarterPlan(id)
-    })
-  }
+  const choose = id => { close(); loadStarterPlan(id) }
   return <>
     <h3>{t('Choose starter plan')}</h3>
     <div className="list">
-      {starterPlanOptions().map(({ id, days }) => {
+      {starterPlanOptions().map(({ id }) => {
         const { name, about } = PLAN_COPY[id]()
-        return <div key={id} className="item" {...tappable(() => choose(id, name))}>
+        return <div key={id} className="item" {...tappable(() => choose(id))}>
           <span className="lrow-i" style={{ background: 'var(--surface-3)' }}><Icon name="sparkles" /></span>
-          <div className="grow"><div className="tt">{name}</div><div className="ss">{t('{0} days per week', days)} · {about}</div></div>
+          <div className="grow"><div className="tt">{name}</div><div className="ss">{about}</div></div>
           <Icon name="chevronRight" className="chev" />
         </div>
       })}
@@ -2117,12 +2095,12 @@ function Calendar({ start, close }) {
   for (let i = 0; i < startOffset; i++) cells.push(<div key={'e' + i} />)
   for (let d = 1; d <= daysIn; d++) {
     const iso = y + '-' + String(mo + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0')
-    const ws = byDay[iso], planned = effectiveRoutineIds(st, iso).length > 0, ovr = st.dayPlan[iso] !== undefined
-    const dotCls = ws ? 'done' : ovr && planned ? 'ovr' : planned ? 'plan' : ''
-    cells.push(<button key={d} className={'cal-d' + (ws ? ' has' : '') + (iso === todayISO() ? ' today' : '')} onClick={() => {
-      if (!ws) { close(); dayOverrideSheet(iso); return }
-      if (ws.length === 1) { close(); workoutDetailSheet(ws[0]); return }
-      close(); ui().openSheet(c2 => <><h3>{fmtDate(iso, true)}</h3><div className="list">{ws.map(w => <WorkoutRow key={w.id} w={w} onClick={() => { c2(); workoutDetailSheet(w) }} />)}</div></>)
+    const logged = byDay[iso]
+    const dotCls = logged ? 'done' : ''
+    cells.push(<button key={d} className={'cal-d' + (logged ? ' has' : '') + (iso === todayISO() ? ' today' : '')} onClick={() => {
+      if (!logged) return
+      if (logged.length === 1) { close(); workoutDetailSheet(logged[0]); return }
+      close(); ui().openSheet(c2 => <><h3>{fmtDate(iso, true)}</h3><div className="list">{logged.map(w => <WorkoutRow key={w.id} w={w} onClick={() => { c2(); workoutDetailSheet(w) }} />)}</div></>)
     }}><span>{d}</span><i className={dotCls} /></button>)
   }
   return <>
@@ -2135,10 +2113,7 @@ function Calendar({ start, close }) {
     <div className="cal-grid">{weekOrder(ws).map(d => <div key={d} className="cal-h">{t(DAYS[d])}</div>)}{cells}</div>
     <div className="cal-legend">
       <span><i style={{ background: 'var(--acc)' }} />{t('Trained')}</span>
-      <span><i style={{ background: 'var(--label-3)' }} />{t('Planned')}</span>
-      <span><i style={{ background: 'var(--orange)' }} />{t('Rescheduled')}</span>
     </div>
-    <div className="small dim" style={{ textAlign: 'center', marginTop: 10 }}>{t('Tap a trained day for details · tap any other day to plan a session')}</div>
   </>
 }
 export const calendarSheet = start => ui().openSheet(close => <Calendar start={start} close={close} />)
@@ -2162,10 +2137,7 @@ export function WorkoutRow({ w, onClick }) {
 // `routineIds` accepts `string | string[] | null` — `[r.id]` for one routine,
 // `effectiveRoutineIds(...)` for today's planned session, `[]` / null for explicit freestyle.
 export function startFlow(routineIds) {
-  // The weigh-in is a setting (Settings → During a workout, issue #137): off goes straight
-  // into the session with no body weight on it, same as "Start without weighing in".
-  if (S().weighIn === false) { beginWorkout(routineIds, null); return }
-  bwSheet({ required: true, onDone: bw => beginWorkout(routineIds, bw) })
+  beginWorkout(routineIds, null)
 }
 export function beginWorkout(routineIds, bw) {
   const st = S()
