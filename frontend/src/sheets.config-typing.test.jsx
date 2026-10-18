@@ -91,9 +91,7 @@ describe('exercise settings: typing into a field with a minimum', () => {
   })
 })
 
-// QA 1.3.9: a timed bodyweight hold showed "Weight (kg)" and "Added (kg)", two fields bound to
-// the same value, under a Bodyweight row that said to "just log the reps".
-describe('exercise settings: a timed bodyweight hold', () => {
+describe('exercise settings: one weight per set', () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     useUI.setState({ sheets: [] })
@@ -103,17 +101,27 @@ describe('exercise settings: a timed bodyweight hold', () => {
   afterEach(() => { act(() => { mounted.splice(0).forEach(root => root.unmount()) }) })
   const labels = host => [...host.querySelectorAll('.stp-l')].map(l => l.textContent)
 
-  it('has one weight field, the added load, and talks about the hold', () => {
-    const { host } = renderConfig({ mode: 'time', sec: 45, weight: 0, bodyweight: true })
-    expect(labels(host)).not.toContain('Weight (kg)')
-    expect(labels(host).filter(l => l === 'Added (kg)')).toHaveLength(1)
-    expect(host.textContent).toContain('No weight to enter — just time the hold.')
-    expect(host.textContent).not.toContain('just log the reps')
+  it('lists a weight for each set and has no bodyweight, per-side or warm-up section', () => {
+    const { host } = renderConfig({ mode: 'time', sec: 45, weight: 10, bodyweight: true, side: true, warmupSets: 2 })
+    expect(labels(host)).toEqual(expect.arrayContaining(['Set 01', 'Set 02', 'Set 03']))
+    expect(labels(host)).not.toContain('Warm-up sets')
+    expect(labels(host)).not.toContain('Added (kg)')
+    expect(host.textContent).not.toContain('Bodyweight')
+    expect(host.textContent).not.toContain('Reps per side')
+    expect(host.textContent).not.toContain('No weight to enter')
   })
 
-  it('keeps the one weight field on a loaded hold', () => {
-    const { host } = renderConfig({ mode: 'time', sec: 45, weight: 10, bodyweight: false })
-    expect(labels(host)).toContain('Weight (kg)')
-    expect(labels(host)).not.toContain('Added (kg)')
+  it('saves each set weight and drops the retired flags', () => {
+    const { host, onSave } = renderConfig({ mode: 'reps', sets: 2, reps: 8, weight: 40, bodyweight: true, side: true, warmupSets: 2, repsMax: 20 })
+    act(() => type(field(host, 'Set 01'), '50'))
+    act(() => save(host))
+    const saved = onSave.mock.calls[0][0]
+    expect(saved.setWeights).toEqual([50, 40])
+    expect(saved.weight).toBe(40)
+    expect(saved.sets).toBe(2)
+    expect(saved.bodyweight).toBeUndefined()
+    expect(saved.side).toBeUndefined()
+    expect(saved.warmupSets).toBeUndefined()
+    expect(saved.repsMax).toBeUndefined()
   })
 })

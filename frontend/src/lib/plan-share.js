@@ -8,9 +8,9 @@
 //  2. A clean, printable page (Save as PDF) where a single exercise never splits across
 //     a page break — each exercise, and each routine that fits, stays in one place.
 
-import { EXIDX, isBodyweightEq } from './exercises.js'
+import { EXIDX } from './exercises.js'
 import { cleanUrl } from './media-refs.js'
-import { modeOf, exLine, MAX_PLANNED_WARMUPS } from './history.js'
+import { modeOf, exLine, setWeightsOf } from './history.js'
 import { uid, todayISO, exCount } from './format.js'
 import { t, exerciseNameFor, exerciseNameClass, getLang, RTL_LANGS } from './i18n-core.js'
 import { convertWeight } from './units.js'
@@ -42,6 +42,7 @@ function convertedExercise(e, sourceUnit, destinationUnit) {
   if (!sourceUnit || sourceUnit === destinationUnit) return e
   const out = { ...e }
   if (out.weight != null) out.weight = convertWeight(out.weight, sourceUnit, destinationUnit)
+  if (Array.isArray(out.setWeights)) out.setWeights = out.setWeights.map(w => convertWeight(w, sourceUnit, destinationUnit))
   // A timed increment is seconds, not a load. Rep-mode increments are load overrides.
   if (modeOf(out) === 'reps' && out.inc > 0) out.inc = convertWeight(out.inc, sourceUnit, destinationUnit)
   return out
@@ -77,11 +78,12 @@ function cleanEx(e) {
     if (e.reps != null) o.reps = e.reps
     if (e.weight) o.weight = e.weight
   }
-  // How the exercise is logged travels too (issues #31/#32) — the bodyweight flag only when
-  // it disagrees with the catalogue, since agreeing is what the other end already assumes.
-  if (e.bodyweight != null && e.bodyweight !== isBodyweightEq(e.id)) o.bodyweight = e.bodyweight
-  // Only on reps work — `side` counts reps, and a timed hold has none to split.
-  if (e.side && mode !== 'time' && mode !== 'cardio') o.side = true
+  if (mode !== 'cardio') {
+    const loads = setWeightsOf(e)
+    o.sets = loads.length
+    o.weight = loads[loads.length - 1] || 0
+    o.setWeights = loads
+  }
   // Progression settings travel with the plan — a shared Greyskull routine that arrives
   // without its rule is just a list of weights.
   if (e.prog) o.prog = e.prog
@@ -90,7 +92,6 @@ function cleanEx(e) {
   // exports remain compact and importing them preserves the default 90% behaviour.
   if (e.deloadFactor != null && Number(e.deloadFactor) !== 0.9) o.deloadFactor = e.deloadFactor
   if (e.repsMin != null) o.repsMin = e.repsMin
-  if (e.repsMax != null) o.repsMax = e.repsMax
   // The exercise's own rest (issue #10) is part of how it is prescribed, so it travels too —
   // only when set, so a plan that never asked for one leaves the recipient's own default
   // timer in charge. parsePlan and mergePlan carry it through by spread.
@@ -98,21 +99,12 @@ function cleanEx(e) {
   if (e.warmupRestSec > 0) o.warmupRestSec = e.warmupRestSec   // the ramp's own rest travels with the work rest
   if (e.sg) o.sg = e.sg
   if (e.note) o.note = e.note
-  const warm = cleanWarmupSets(e.warmupSets)
-  if (warm) o.warmupSets = warm
   // Drop-sets and rest-pause are part of how the exercise is prescribed, not a logging detail.
   // Without this a shared "3x5 with a double drop" arrived at the other end as a plain 3x5,
   // silently — parsePlan's `dropped` counter only tracks exercises it cannot resolve at all.
   const intens = cleanIntensifier(e.intensifier)
   if (intens) o.intensifier = intens
   return o
-}
-
-/** Clamped the same way buildSets clamps it on the way out — the stepper showed a hand-edited
- *  plan file's "999" verbatim, because the clamp only happened when the rows were built. */
-function cleanWarmupSets(v) {
-  const n = Math.round(Number(v)) || 0
-  return n > 0 ? Math.min(MAX_PLANNED_WARMUPS, n) : 0
 }
 
 /** A positive whole number of seconds or nothing — the same gate cleanEx applies on the way
@@ -216,12 +208,18 @@ export function parsePlan(raw, destinationUnit = 'kg') {
     }).map(e => {
       // The exercises pass through as written, so the fields that carry numbers into the
       // planner get the same clamps on the way in that they get on the way out.
-      const warm = cleanWarmupSets(e.warmupSets)
       const intens = cleanIntensifier(e.intensifier)
       const rest = cleanRestSec(e.restSec)
       const warmRest = cleanRestSec(e.warmupRestSec)
-      const { warmupSets, intensifier, restSec, warmupRestSec, ...passthrough } = e
-      return convertedExercise({ ...passthrough, ...(warm ? { warmupSets: warm } : {}), ...(intens ? { intensifier: intens } : {}), ...(rest ? { restSec: rest } : {}), ...(warmRest ? { warmupRestSec: warmRest } : {}) }, sourceUnit || destination, destination)
+      const { warmupSets, bodyweight, side, repsMax, intensifier, restSec, warmupRestSec, ...passthrough } = e
+      const next = { ...passthrough, ...(intens ? { intensifier: intens } : {}), ...(rest ? { restSec: rest } : {}), ...(warmRest ? { warmupRestSec: warmRest } : {}) }
+      if (modeOf(next) !== 'cardio') {
+        const loads = setWeightsOf(next)
+        next.sets = loads.length
+        next.weight = loads[loads.length - 1] || 0
+        next.setWeights = loads
+      }
+      return convertedExercise(next, sourceUnit || destination, destination)
     })
   }))
   return {

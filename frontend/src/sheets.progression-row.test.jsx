@@ -47,9 +47,9 @@ describe('exercise configuration progression row', () => {
     const linear = renderConfig({ prog: 'linear' })
     expect(linear.row.querySelectorAll('.stp-w')).toHaveLength(2)
     expect(linear.row.classList.contains('cfgrow-4')).toBe(false)
-    // double on a body-weight exercise: no Epley deload, three steppers
+    // The old bodyweight flag no longer shortens the row: the deload stepper stays.
     const bw = renderConfig({ prog: 'double', weight: 0, bodyweight: true })
-    expect(bw.row.querySelectorAll('.stp-w')).toHaveLength(3)
-    expect(bw.row.classList.contains('cfgrow-4')).toBe(false)
+    expect(bw.row.querySelectorAll('.stp-w')).toHaveLength(4)
+    expect(bw.row.classList.contains('cfgrow-4')).toBe(true)
   })
 })

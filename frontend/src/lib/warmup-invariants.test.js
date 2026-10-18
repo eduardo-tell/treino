@@ -52,25 +52,19 @@ describe('a warm-up never outweighs the work set', () => {
   })
 })
 
-// buildSets prepends the warm-ups, then applyPrescription rewrites the WORK rows only — so a
-// ramp built against last session's weight is stale the moment progression moves. On a deload
-// that put the last warm-up above every work set.
-describe('the ramp follows the prescribed weight', () => {
+describe('a planned warm-up count does not open extra rows', () => {
   const S = { workouts: [], exWeights: {}, routines: [] }
   const cfg = { id: 'bench', sets: 3, reps: 5, weight: 100, warmupSets: 2 }
 
-  it('re-ramps after a deload instead of aiming at the old weight', () => {
+  it('prescribes only the work sets after a deload', () => {
     const rows = applyPrescription(buildSets(S, cfg, { step: 2.5 }), { kind: 'deload', weight: 50 })
-    const warm = rows.filter(r => r.phase === 'warmup').map(r => r.w)
-    const work = rows.filter(r => r.phase !== 'warmup').map(r => r.w)
-    expect(work).toEqual([50, 50, 50])
-    for (const x of warm) expect(x).toBeLessThanOrEqual(50)
-    expect(warm).toEqual([25, 37.5])
+    expect(rows.filter(r => r.phase === 'warmup')).toHaveLength(0)
+    expect(rows.map(r => r.w)).toEqual([50, 50, 50])
   })
 
-  it('re-ramps after a bump', () => {
+  it('prescribes only the work sets after a bump', () => {
     const rows = applyPrescription(buildSets(S, cfg, { step: 2.5 }), { kind: 'up', weight: 150 })
-    expect(rows.filter(r => r.phase !== 'warmup').map(r => r.w)).toEqual([150, 150, 150])
-    expect(rows.filter(r => r.phase === 'warmup').map(r => r.w)).toEqual([75, 112.5])
+    expect(rows.filter(r => r.phase === 'warmup')).toHaveLength(0)
+    expect(rows.map(r => r.w)).toEqual([150, 150, 150])
   })
 })

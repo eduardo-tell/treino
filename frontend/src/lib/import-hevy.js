@@ -293,7 +293,7 @@ export function parseHevyWorkouts(workouts, templates, { unit = 'kg' } = {}) {
 
 /**
  * Hevy routine → openGym routine config.
- * Work sets become `sets`×`reps`/`weight`; warm-ups become `warmupSets`;
+ * Work sets become `sets`×`reps`/`weight` plus one weight per set; warm-up rows are skipped;
  * supersets keep adjacency via `sg`. Always imported as *new* routines.
  */
 export function parseHevyRoutines(routines, templates, { unit = 'kg' } = {}) {
@@ -332,7 +332,11 @@ export function parseHevyRoutines(routines, templates, { unit = 'kg' } = {}) {
       } else {
         cfg = { id, sets: nWork, reps: reps || 10, weight: wgt || 0, mode: 'reps' }
       }
-      if (warm > 0) cfg.warmupSets = Math.min(5, warm)
+      if (work.length && cfg.mode !== 'cardio' && cfg.min == null) {
+        cfg.setWeights = work.map(s => toProfileWeight(s?.weight_kg, unit) || 0)
+        cfg.sets = cfg.setWeights.length
+        cfg.weight = cfg.setWeights[cfg.setWeights.length - 1] || 0
+      }
       if (he.notes) cfg.note = String(he.notes).slice(0, 280)
 
       if (he.superset_id != null && he.superset_id !== '') {

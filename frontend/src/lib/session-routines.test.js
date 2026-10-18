@@ -29,9 +29,12 @@ describe('routineFromSession', () => {
     const routine = routineFromSession(session)
     expect(routine.name).toBe('Evening push')
     expect(routine.ex).toEqual([expect.objectContaining({
-      id: 'bench', sets: 2, warmupSets: 1, reps: 10, weight: 45,
-      mode: 'reps', side: true, bodyweight: true, inc: 2.5, note: 'controlled'
+      id: 'bench', sets: 2, reps: 10, weight: 45, setWeights: [40, 45],
+      mode: 'reps', inc: 2.5, note: 'controlled'
     })])
+    expect(routine.ex[0].warmupSets).toBeUndefined()
+    expect(routine.ex[0].side).toBeUndefined()
+    expect(routine.ex[0].bodyweight).toBeUndefined()
     expect(routine.ex[0].id).toBe('bench')
     expect(routine.ex[0].sg).toBeUndefined() // one item is not a superset
   })
@@ -72,8 +75,11 @@ describe('routineFromSession', () => {
     }
 
     const [hold, run] = routineFromSession(session).ex
-    expect(hold).toMatchObject({ mode: 'time', sec: 35, weight: 7, sets: 1, warmupSets: 1 })
-    expect(run).toMatchObject({ mode: 'cardio', min: 22, speed: 9, sets: 1, warmupSets: 0 })
+    expect(hold).toMatchObject({ mode: 'time', sec: 35, weight: 7, sets: 1, setWeights: [7] })
+    expect(hold.warmupSets).toBeUndefined()
+    expect(run).toMatchObject({ mode: 'cardio', min: 22, speed: 9, sets: 1 })
+    expect(run.warmupSets).toBeUndefined()
+    expect(run.setWeights).toBeUndefined()
     expect(hold.sg).toBe(run.sg)
     expect(hold.sg).not.toBe('entry-group')
   })
@@ -89,10 +95,11 @@ describe('routineFromSession', () => {
     expect(saved.entries[0].sets[0].sides).toMatchObject({ L: { r: 8, done: true }, R: { r: 8, done: true } })
 
     const cfg = routineFromSession(saved).ex[0]
-    expect(cfg).toMatchObject({ side: true, reps: 16, weight: 20 })
+    expect(cfg).toMatchObject({ reps: 16, weight: 20 })
+    expect(cfg.side).toBeUndefined()
     const rebuilt = rebuild(cfg)
-    expect(rebuilt.sets[0].sides.L.r).toBe(8)
-    expect(rebuilt.sets[0].sides.R.r).toBe(8)
+    expect(rebuilt.sets[0].sides).toBeUndefined()
+    expect(rebuilt.sets[0].r).toBe(16)
   })
 
   it('uses only fully completed work for values and makes asymmetric sides representable', () => {
@@ -103,8 +110,9 @@ describe('routineFromSession', () => {
       id: 'workout-2', entries: [entry('0025', { mode: 'reps', side: true, reps: 16, weight: 20 }, [asymmetric])],
     })
     const cfg = routineFromSession(savedAsymmetric).ex[0]
-    expect(cfg).toMatchObject({ reps: 16, weight: 22.5 }) // nearest even total; exact 8/7 and 20/22.5 are not claimed
-    expect(rebuild(cfg).sets[0].sides).toMatchObject({ L: { w: 22.5, r: 8 }, R: { w: 22.5, r: 8 } })
+    expect(cfg).toMatchObject({ reps: 15, weight: 22.5 })
+    expect(cfg.side).toBeUndefined()
+    expect(rebuild(cfg).sets[0].sides).toBeUndefined()
 
     const complete = completeSides(makeSideSet({ w: 20, r: 16 }))
     let partial = makeSideSet({ w: 30, r: 12 })
@@ -114,7 +122,8 @@ describe('routineFromSession', () => {
     })
     const partialCfg = routineFromSession(savedPartial).ex[0]
     expect(partialCfg).toMatchObject({ sets: 2, reps: 16, weight: 20 })
-    expect(rebuild(partialCfg).sets.map(set => [set.sides.L.w, set.sides.L.r])).toEqual([[20, 8], [20, 8]])
+    expect(partialCfg.side).toBeUndefined()
+    expect(rebuild(partialCfg).sets.every(set => set.sides == null)).toBe(true)
   })
 
   it('rejects a saved session with no exercise setup', () => {
@@ -168,14 +177,15 @@ describe('a routine saved from a planned session', () => {
     expect(work(next).map(s => [s.w, s.r])).toEqual(work(open(st, source)).map(s => [s.w, s.r]))
   })
 
-  it('takes the planned set count, not a set the bodyweight ceiling added or a bonus set', () => {
+  it('takes the planned set count, not a bonus set logged in the session', () => {
     const source = { id: 'B', name: 'Body', ex: [{ id: PUSHUP, sets: 2, reps: 10, repsMax: 10, weight: 0, bodyweight: true }] }
     const st = stateOf([source])
-    train(st, source, { r: 10 })
-    const saved = train(st, source, { r: 10 })   // the ceiling added a third set
-    expect(work(saved.entries[0])).toHaveLength(3)
+    const saved = train(st, source, { r: 10 })
+    expect(work(saved.entries[0])).toHaveLength(2)
     const copy = routineFromSession(saved, 'Copy', st.routines)
     expect(copy.ex[0]).toMatchObject({ sets: 2, reps: 10 })
+    expect(copy.ex[0].bodyweight).toBeUndefined()
+    expect(copy.ex[0].repsMax).toBeUndefined()
 
     const bonus = { ...saved, entries: [{ ...saved.entries[0], sets: [...saved.entries[0].sets, { w: 0, r: 12, done: true }] }] }
     expect(routineFromSession(bonus, 'Copy', st.routines).ex[0].sets).toBe(2)

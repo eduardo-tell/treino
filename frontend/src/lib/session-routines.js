@@ -71,7 +71,11 @@ function copiedEntry(entry, source) {
   const target = entry?.target && typeof entry.target === 'object'
     ? structuredClone(entry.target)
     : {}
-  const cfg = { ...defaultConfig(entry?.id), ...target, id: entry?.id, sets: Math.max(1, work.length || 1), warmupSets: rows.filter(isWarmupRow).length }
+  const cfg = { ...defaultConfig(entry?.id), ...target, id: entry?.id, sets: Math.max(1, work.length || 1) }
+  delete cfg.bodyweight
+  delete cfg.side
+  delete cfg.warmupSets
+  delete cfg.repsMax
   const mode = modeOf(cfg)
   if (mode === 'time' && row) Object.assign(cfg, { sec: row.sec ?? cfg.sec, weight: row.w ?? cfg.weight ?? 0 })
   else if (mode === 'cardio' && row) Object.assign(cfg, { min: row.min ?? cfg.min, speed: row.speed ?? cfg.speed })
@@ -119,6 +123,17 @@ function copiedEntry(entry, source) {
   // in a routine: a copied `planned` or `rid` would tell the next session it had been built from
   // another plan or another routine.
   for (const key of SESSION_ONLY) delete cfg[key]
+  if (mode !== 'cardio') {
+    const doneRows = work.filter(candidate => candidate?.done === true)
+    const sourceRows = doneRows.length ? doneRows : work
+    const fromRows = sourceRows.map(row => Math.max(0, Number(isSideSet(row) ? perSideWeight(row) : row?.w) || 0))
+    const loads = fromRows.length ? fromRows : [Math.max(0, Number(cfg.weight) || 0)]
+    const n = Math.max(1, cfg.sets || loads.length)
+    const fill = loads[loads.length - 1] || 0
+    cfg.setWeights = Array.from({ length: n }, (_, i) => loads[i] != null ? loads[i] : fill)
+    cfg.sets = n
+    cfg.weight = cfg.setWeights[n - 1] || 0
+  }
   return cfg
 }
 

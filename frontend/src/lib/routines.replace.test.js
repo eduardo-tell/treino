@@ -16,14 +16,16 @@ const ASSISTED_PULL_UP = '0015' // assisted pull-up, a leverage machine: the wei
 const PULLDOWN = '0150'   // lat pulldown, cable
 
 describe('replaceSlotExercise', () => {
-  it('keeps the slot\'s sets, reps, weight, rule, rest, warm-ups, note and superset', () => {
+  it('keeps the slot\'s sets, reps, weight, rule, rest, note and superset', () => {
     const slot = {
       id: BENCH, sg: 'sgA', sets: 4, mode: 'reps', reps: 8, repsMin: 6, weight: 60, prog: 'double', inc: 1.25,
       deloadFactor: 0.85, note: 'pause on the chest', warmupSets: 2, restSec: 150,
       intensifier: { type: 'dropset', count: 1, pct: 20 },
     }
     const next = replaceSlotExercise(slot, DB_BENCH)
-    expect(next).toEqual({ ...slot, id: DB_BENCH })
+    const { warmupSets, ...kept } = slot
+    expect(next).toEqual({ ...kept, id: DB_BENCH })
+    expect(next.warmupSets).toBeUndefined()
     // A new object — the routine's own slot is not edited behind the store's back.
     expect(slot.id).toBe(BENCH)
   })
@@ -38,7 +40,7 @@ describe('replaceSlotExercise', () => {
     // A push-up the user loaded with 20 kg and marked as not bodyweight, picked again from "Chosen".
     const slot = { id: PUSH_UP, sg: 'sgA', sets: 3, mode: 'reps', reps: 8, weight: 20, bodyweight: false, side: true }
     const same = replaceSlotExercise(slot, PUSH_UP, { workouts: [] }, 'A')
-    expect(same).toEqual(slot)
+    expect(same).toEqual({ id: PUSH_UP, sg: 'sgA', sets: 3, mode: 'reps', reps: 8, weight: 20 })
     expect(same).not.toBe(slot)
   })
 
@@ -56,21 +58,18 @@ describe('replaceSlotExercise', () => {
     expect(next).toEqual({ id: DB_BENCH, sets: 3, mode: 'time', sec: 40, weight: 20 })
   })
 
-  it('drops a load that means something else once the exercise is bodyweight, or stops being', () => {
-    // 60 kg on a bar is not 60 kg added to a push-up …
+  it('keeps the load when the exercise changes and drops the retired flags', () => {
     expect(replaceSlotExercise({ id: BENCH, sets: 3, mode: 'reps', reps: 10, weight: 60 }, PUSH_UP))
-      .toEqual({ id: PUSH_UP, sets: 3, mode: 'reps', reps: 10, weight: 0 })
-    // … and a push-up's rep ceiling and belt are not a bench press's numbers.
+      .toEqual({ id: PUSH_UP, sets: 3, mode: 'reps', reps: 10, weight: 60 })
     expect(replaceSlotExercise({ id: PUSH_UP, sets: 3, mode: 'reps', reps: 12, weight: 10, repsMax: 20, bodyweight: true }, BENCH))
-      .toEqual({ id: BENCH, sets: 3, mode: 'reps', reps: 12, weight: 0 })
+      .toEqual({ id: BENCH, sets: 3, mode: 'reps', reps: 12, weight: 10 })
   })
 
-  it('keeps an added weight from one bodyweight exercise to another, and lets the new one follow its own equipment', () => {
+  it('keeps the load from one exercise to another and drops the retired flags', () => {
     expect(replaceSlotExercise({ id: PUSH_UP, sets: 3, mode: 'reps', reps: 8, weight: 10, repsMax: 15, bodyweight: true }, PULL_UP))
-      .toEqual({ id: PULL_UP, sets: 3, mode: 'reps', reps: 8, weight: 10, repsMax: 15 })
-    // A push-up the user had turned into a loaded exercise: that choice was about the push-up.
+      .toEqual({ id: PULL_UP, sets: 3, mode: 'reps', reps: 8, weight: 10 })
     expect(replaceSlotExercise({ id: PUSH_UP, sets: 3, mode: 'reps', reps: 8, weight: 20, bodyweight: false }, PULL_UP))
-      .toEqual({ id: PULL_UP, sets: 3, mode: 'reps', reps: 8, weight: 0 })
+      .toEqual({ id: PULL_UP, sets: 3, mode: 'reps', reps: 8, weight: 20 })
   })
 
   it('starts from the new exercise\'s defaults between cardio and lifting, keeping the note, rest and superset', () => {

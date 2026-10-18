@@ -205,10 +205,11 @@ describe('routine move controls', () => {
     act(() => moveButton('setup-10', 'Move down').click())
 
     const parsed = parsePlan(JSON.stringify(buildPlanBundle(useStore.getState().S, 'Move test')))
+    const saved = (id, setup, sg) => ({ ...entry(id, setup, sg), setWeights: [setup, setup, setup] })
     expect(parsed.routines[0].ex).toEqual([
-      entry('c3', 30),
-      entry('c1', 10, 'g'),
-      entry('c2', 20, 'g')
+      saved('c3', 30),
+      saved('c1', 10, 'g'),
+      saved('c2', 20, 'g')
     ])
   })
 })

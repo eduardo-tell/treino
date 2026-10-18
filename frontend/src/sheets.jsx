@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
-import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, smOf, searchExercises, exOr, isAssisted, betterWeight, beatsWeight } from './lib/exercises.js'
+import { EXDB, EXIDX, BODYPARTS, isCardio, allExercises, equipmentOf, smOf, searchExercises, exOr, isAssisted, betterWeight, beatsWeight } from './lib/exercises.js'
 import { activeProfile, exAvailable, ALL_EQUIPMENT, newProfile } from './lib/equipment.js'
 import { fmtDate, fmtDateRange, fmtNum, fmtPlate, exerciseNameText, fmtVol, fmtDur, durPart, todayISO, isoOf, uid, exCount, routineCount, setsWorkCount, DAYN, DAYS, weekOrder, weekStartOf, weekDayOffset, MONTHS_LONG, ACCENTS } from './lib/format.js'
-import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutDay, workoutVolume, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, sessionSections, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, isPerSide, sideReps, workSetsDone, applyIntensifierPlan, MAX_PLANNED_WARMUPS, NOTE_MAX } from './lib/history.js'
+import { lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, effectiveRoutineIds, workoutDay, workoutVolume, setsDone, setsDoneActive, setUnitsTotal, lastBW, supersetUnits, sessionSections, unitOf, setLabel, defaultConfig, cleanupSg, modeOf, effortOf, EFFORT, capEffort, stepEffort, isBw, workSetsDone, applyIntensifierPlan, setWeightsOf, NOTE_MAX } from './lib/history.js'
 import { usesBar, defaultBarWeight, hasBarOverride, isNoBar } from './lib/bar.js'
 import { PLATE_SIZES, pairsOf, ownsPlates, withPlatePairs, withStandardPlates, withLoadKind, loadKindFor, baseWeightFor, dropGrid } from './lib/plates.js'
 import { toScale, rirOf, EFFORT_PRESETS, effortColor } from './lib/effort.js'
@@ -30,7 +30,7 @@ import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } fr
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { exerciseHistory } from './lib/exercise-history.js'
-import { policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, weightIncrement } from './lib/progression.js'
+import { policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, weightIncrement } from './lib/progression.js'
 import { normalizeRepRange } from './lib/rep-range.js'
 import { speedUnitOf, toSpeed, fromSpeed } from './lib/speed.js'
 import { buildCompletedWorkout } from './lib/finish-workout.js'
@@ -1347,16 +1347,19 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
   const seed = existing || initial || defaultConfig(ex.id)
   const [c, setC] = useState(() => {
     const cfg = { ...seed }
+    delete cfg.bodyweight
+    delete cfg.side
+    delete cfg.warmupSets
+    delete cfg.repsMax
+    if (!isCardio(ex.id)) cfg.setWeights = setWeightsOf(cfg)
     return policyFor({ ...cfg, id: ex.id }, routine, modeOf({ ...cfg, id: ex.id })) === 'double'
-      ? { ...cfg, ...normalizeRepRange(cfg.reps, cfg.repsMin, isPerSide(cfg) ? 2 : 1) }
+      ? { ...cfg, ...normalizeRepRange(cfg.reps, cfg.repsMin, 1) }
       : cfg
   })
   // Cardio keeps its own duration+speed form; the reps/time choice (issue #16) is offered for
   // everything else, which is where the gap was — planks, hangs, wall sits, loaded carries.
   const mode = cardio ? 'cardio' : modeOf({ ...c, id: ex.id })
-  // Both default from the dataset and are then whatever the config says — see isBw.
-  const bw = !cardio && isBw({ ...c, id: ex.id })
-  const perSide = isPerSide(c)
+  const perSide = false
   const progressionPolicy = policyFor({ ...c, id: ex.id }, routine, mode)
   const progressionStepInvalid = !progressionStepIsValid(progressionStepOf(c, mode, ex, st.unit), progressionPolicy)
   const activePolicy = policyFor({ ...c, id: ex.id }, routine, mode)
@@ -1365,13 +1368,14 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
   const setMode = m => setC(x => {
     const next = { ...defaultConfig(ex.id, m), ...x, mode: m }
     return m === 'reps' && policyFor({ ...next, id: ex.id }, routine, 'reps') === 'double'
-      ? { ...next, ...normalizeRepRange(next.reps, next.repsMin, isPerSide(next) ? 2 : 1) }
+      ? { ...next, ...normalizeRepRange(next.reps, next.repsMin, 1) }
       : next
   })
   const save = () => {
     if (progressionStepInvalid) return
     close()
-    const sets = Math.max(1, Math.round(c.sets) || (cardio ? 1 : 3))
+    const setWeights = setWeightsOf(c)
+    const sets = cardio ? Math.max(1, Math.round(c.sets) || 1) : setWeights.length
     // Only carry progression settings that differ from the inherited default, so a plan file
     // stays readable and "follow the routine" keeps meaning exactly that.
     const prog = {}
@@ -1379,54 +1383,47 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     if (c.inc > 0) prog.inc = c.inc
     // Epley deloading is configurable per occurrence, but the default stays omitted so older
     // plans retain their compact shape and keep the existing 90% behaviour.
-    if (mode === 'reps' && !bw && (activePolicy === 'linear' || activePolicy === 'double')) {
+    if (mode === 'reps' && (activePolicy === 'linear' || activePolicy === 'double')) {
       const deloadFactor = Math.max(0.5, Math.min(0.95, Number(c.deloadFactor) || 0.9))
       if (deloadFactor !== 0.9) prog.deloadFactor = deloadFactor
     }
-    // Written only when it differs from what the dataset already says, so a barbell config
-    // stays exactly the shape it was before these flags existed.
-    // `bodyweight` is true of a hold as much as of a set of reps; `side` is not — it counts
-    // reps, and a timed hold has none. Switching an exercise to Time therefore drops it
-    // rather than carrying a flag nothing downstream can read.
-    const flags = {}
-    if (bw !== isBodyweightEq(ex.id)) flags.bodyweight = bw
-    // Free text, e.g. a pyramid's per-set loading ("bar only, +1 plate/side each set") — the
-    // sets/reps/weight fields are one flat target and have no room for that on their own.
-    // Mode-independent, so it is spread in below rather than folded into `flags`.
     const note = (c.note || '').trim().slice(0, 500)
     const withNote = note ? { note } : {}
-    // Only written when there are any, so a plan that never asked for warm-ups keeps the exact
-    // shape it had — and reads back as 0 either way (buildSets).
-    const warmupSets = Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(c.warmupSets) || 0))
-    const withWarmups = warmupSets ? { warmupSets } : {}
-    // Per-exercise rest (issue #10): written only when a positive value was set, so 0 keeps
-    // inheriting the global rest timer and a config that never touched it stays the shape it
-    // was. Mode-independent — a heavy triple, a plank and a cardio interval all rest.
     const restSec = Math.max(0, Math.round(c.restSec) || 0)
     const withRest = restSec ? { restSec } : {}
+    const weight = setWeights[setWeights.length - 1] || 0
+    const withLoads = { sets, weight, setWeights }
     if (cardio) onSave({ sets, min: Math.max(1, Math.round(c.min) || 20), speed: Math.max(0, c.speed || 8), ...withNote, ...withRest })
-    else if (mode === 'time') onSave({ sets, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), weight: Math.max(0, c.weight || 0), ...flags, ...prog, ...withNote, ...withWarmups, ...withRest })
+    else if (mode === 'time') onSave({ ...withLoads, mode: 'time', sec: Math.max(1, Math.round(c.sec) || 45), ...prog, ...withNote, ...withRest })
     else {
-      // A unilateral target is stored even: the split has to divide, and a typed 15 would
-      // otherwise plan seven reps on one side and eight on the other, every session.
-      const typed = Math.max(1, Math.round(c.reps) || 10)
-      const stride = perSide ? 2 : 1
-      let reps = perSide ? Math.ceil(typed / stride) * stride : typed
+      const reps = Math.max(1, Math.round(c.reps) || 10)
       let range = null
+      let top = reps
       if (double) {
-        range = normalizeRepRange(reps, c.repsMin, stride)
-        reps = range.reps
+        range = normalizeRepRange(reps, c.repsMin, 1)
+        top = range.reps
       }
-      const out = { sets, mode: 'reps', reps, weight: Math.max(0, c.weight || 0), ...flags, ...(perSide ? { side: true } : {}), ...prog, ...withNote, ...withWarmups, ...withRest }
+      const out = { ...withLoads, mode: 'reps', reps: top, ...prog, ...withNote, ...withRest }
       if (double) out.repsMin = range.repsMin
-      // A ceiling below the working reps would tell you to add a set on day one.
-      if (bw && !(out.weight > 0) && c.repsMax > 0) out.repsMax = Math.max(reps, Math.round(c.repsMax))
-      // Every set in this exercise becomes a drop-set/rest-pause (buildSets stamps the rows) —
-      // decided here, in the plan, not re-decided live each time you train it.
       if (c.intensifier && c.intensifier.type) out.intensifier = intensifierToSave(c.intensifier)
       onSave(out)
     }
   }
+  const weights = setWeightsOf(c)
+  const setWeightAt = (i, v) => setC(x => {
+    const next = setWeightsOf(x).slice()
+    next[i] = v
+    return { ...x, setWeights: next, sets: next.length, weight: next[next.length - 1] || 0 }
+  })
+  const addSet = () => setC(x => {
+    const next = [...setWeightsOf(x), setWeightsOf(x).at(-1) || 0]
+    return { ...x, setWeights: next, sets: next.length, weight: next[next.length - 1] || 0 }
+  })
+  const removeSet = i => setC(x => {
+    const next = setWeightsOf(x).filter((_, j) => j !== i)
+    const kept = next.length ? next : [0]
+    return { ...x, setWeights: kept, sets: kept.length, weight: kept[kept.length - 1] || 0 }
+  })
   return <>
     <h3 className={exerciseNameClass(ex)}>{exerciseNameFor(ex)}</h3>
     <Media ex={ex} />
@@ -1454,42 +1451,20 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         <Stepper label={speedUnit === 'mph' ? t('Speed (mph)') : t('Speed (km/h)')} value={toSpeed(c.speed, speedUnit)} step={0.5}
           onChange={v => setC(x => ({ ...x, speed: fromSpeed(v, speedUnit) }))} />
       </> : mode === 'time' ? <>
-        <Stepper label={t('Sets')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />
         <Stepper label={t('Seconds')} value={c.sec} step={5} decimal={false} onChange={v => setC(x => ({ ...x, sec: v }))} />
-        {/* A bodyweight hold's load is the "Added" row below — showing both put two fields on
-            one value. */}
-        {!bw && <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={2.5} onChange={v => setC(x => ({ ...x, weight: v }))} />}
       </> : <>
-        {/* Rest-pause always trains as exactly two rows — a warm-up at this rep count, then one
-            rest-pause work set — so "Sets" has nothing left to mean and only invites a mismatch. */}
-        {c.intensifier?.type !== 'restpause' &&
-          <Stepper label={t('Sets')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />}
-        {!double && <Stepper label={t('Reps')} value={c.reps} step={perSide ? 2 : 1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
-        {/* On bodyweight work the weight stepper is the click #32 is about, so it is not here
-            until there is a belt to describe — see the added-weight row below. */}
-        {!bw && <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={2.5} onChange={v => setC(x => ({ ...x, weight: v }))} />}
+        {!double && <Stepper label={t('Reps')} value={c.reps} step={1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
       </>}
     </div>
-    {c.intensifier?.type === 'restpause' && <div className="small dim" style={{ marginTop: -10, marginBottom: 18 }}>
-      {t('Rest-pause always trains as one warm-up set at this rep count, then one rest-pause work set — "Sets" is not used.')}
-    </div>}
-    {/* Planned warm-ups: the session used to start at the work weight and you added every
-        warm-up by hand, every time. Rest-pause is excluded because it builds its own warm-up
-        row, and cardio because an interval plan has no load to ramp. */}
-    {!cardio && c.intensifier?.type !== 'restpause' && <>
-      <div className="row cfgrow" style={{ marginBottom: 6 }}>
-        <Stepper label={t('Warm-up sets')} value={c.warmupSets || 0} step={1} decimal={false}
-          onChange={v => setC(x => ({ ...x, warmupSets: Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(v) || 0)) }))} />
-      </div>
-      <div className="small dim" style={{ marginBottom: 18 }}>
-        {(c.warmupSets || 0) > 0
-          ? t('Added before your work sets and left out of volume, records and progression. Each one closes half the gap to the work weight — you can still change any of them mid-session.')
-          : t('Ramp-up sets added before the work sets, so you do not have to add them by hand each session.')}
-      </div>
+    {!cardio && <>
+      {weights.map((w, i) => <div key={i} className="row cfgrow" style={{ marginBottom: 8 }}>
+        <Stepper label={t('Set {0}', String(i + 1).padStart(2, '0'))} value={w} step={2.5}
+          onChange={v => setWeightAt(i, v)} />
+        {weights.length > 1 && <button type="button" className="iconbtn sm" aria-label={t('Remove')} onClick={() => removeSet(i)}><Icon name="xmark" /></button>}
+      </div>)}
+      <Button size="sm" icon="plus" onClick={addSet}>{t('Add set')}</Button>
+      <div style={{ height: 18 }} />
     </>}
-    {mode === 'time' && !bw && <div className="small dim" style={{ marginBottom: 18 }}>
-      {t('A timer runs while you hold the set. Leave the weight at 0 for bodyweight holds.')}
-    </div>}
     {/* Per-exercise rest (issue #10). Its own full-width row, like the other steppers with an
         explanation under them, and outside every mode branch because a heavy triple, a plank
         and a cardio interval all rest — they just do not all want the same break. */}
@@ -1500,46 +1475,6 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     <div className="small dim" style={{ marginBottom: 18 }}>
       {t('Rest after each set of this exercise. Leave at 0 to use your default rest timer.')}
     </div>
-    {/* ---------- bodyweight + per side (issues #31/#32/#33) ---------- */}
-    {!cardio && <div className="sect-b" style={{ marginBottom: 8 }}>
-      <Row icon="figureStrength" iconTint="var(--acc)" title={t('Bodyweight')}
-        subtitle={bw ? (mode === 'time' ? t('No weight to enter — just time the hold.') : t('No weight to enter — just log the reps.')) : t('Ask for a weight on every set.')}>
-        <Switch checked={bw} onChange={v => setC(x => ({ ...x, bodyweight: v, weight: v ? 0 : x.weight }))} />
-      </Row>
-      {mode === 'reps' && <Row icon="shuffle" iconTint="var(--blue)" title={t('Reps per side')}
-        subtitle={perSide ? t('You still log the total: {0} is {1} per side.', c.reps || 0, fmtNum(sideReps(c.reps))) : t('For lunges, single-arm rows and the like.')}>
-        {/* Turning it on rounds the target up to an even number, since half of an odd
-            total is a rep one side does not get. */}
-        <Switch checked={perSide} onChange={v => setC(x => {
-          const next = { ...x, side: v || undefined, reps: v ? Math.ceil((x.reps || 0) / 2) * 2 : x.reps }
-          return policyFor({ ...next, id: ex.id }, routine, 'reps') === 'double'
-            ? { ...next, ...normalizeRepRange(next.reps, next.repsMin, v ? 2 : 1) }
-            : next
-        })} />
-      </Row>}
-    </div>}
-    {/* A stepper is too wide to sit in a list row next to a label — it squeezes the text to
-        one word per line — so added weight gets the same full-width treatment as sets and
-        reps, with its explanation underneath. */}
-    {bw && <>
-      <div className="row cfgrow" style={{ marginBottom: 8 }}>
-        <Stepper label={t('Added ({0})', st.unit)} value={c.weight || 0} step={2.5}
-          onChange={v => setC(x => ({ ...x, weight: v }))} />
-      </div>
-      <div className="small dim" style={{ marginBottom: 18 }}>
-        {t('For dips or pull-ups with a belt. Progression then follows the weight.')}
-      </div>
-    </>}
-    {/* The rep ceiling only means something when there is no load to add instead. */}
-    {mode === 'reps' && bw && !(c.weight > 0) && <div className="row cfgrow" style={{ marginBottom: 18 }}>
-      <Stepper label={t('Top of the range')} value={c.repsMax || 0} step={1} decimal={false}
-        onChange={v => setC(x => ({ ...x, repsMax: v }))} />
-    </div>}
-    {mode === 'reps' && bw && !(c.weight > 0) && <div className="small dim" style={{ marginTop: -10, marginBottom: 18 }}>
-      {c.repsMax > 0
-        ? t('Reps climb to {0}, then a set is added and the reps start over. At {1} sets it asks you to add weight instead.', c.repsMax, MAX_BW_SETS)
-        : t('Reps climb by one whenever every set was clean. Set a ceiling to add sets instead of reps forever.')}
-    </div>}
     {mode === 'reps' && <>
       <h4 className="sec">{t('Drop-set / rest-pause')}</h4>
       <div className="sect-b" style={{ marginBottom: 8 }}>

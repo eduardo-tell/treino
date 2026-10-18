@@ -71,8 +71,15 @@ describe('what survives a shared plan', () => {
       .toEqual({ type: 'restpause', totalReps: 12, restSec: 15 })
   })
 
-  it('carries planned warm-ups', () => {
-    expect(roundTrip({ warmupSets: 3 }).warmupSets).toBe(3)
+  it('carries a weight for each set and drops warm-ups, bodyweight and per-side flags', () => {
+    const ex = roundTrip({ setWeights: [80, 90, 100], warmupSets: 3, bodyweight: true, side: true, repsMax: 20 })
+    expect(ex.setWeights).toEqual([80, 90, 100])
+    expect(ex.weight).toBe(100)
+    expect(ex.sets).toBe(3)
+    expect(ex.warmupSets).toBeUndefined()
+    expect(ex.bodyweight).toBeUndefined()
+    expect(ex.side).toBeUndefined()
+    expect(ex.repsMax).toBeUndefined()
   })
 
   it('carries a non-default Epley deload factor and omits the default', () => {
@@ -123,9 +130,13 @@ describe('what survives a shared plan', () => {
     expect(roundTrip({ intensifier: { type: 'nonsense', count: 3 } }).intensifier).toBeUndefined()
   })
 
-  it('clamps a hand-edited warm-up count instead of showing it verbatim', () => {
-    const bundle = { opengym_plan: 1, name: 'x', routines: [{ id: 'r', name: 'R', ex: [{ id: '0025', sets: 3, reps: 5, warmupSets: 999 }] }], week: {}, customEx: [] }
-    expect(parsePlan(bundle).routines[0].ex[0].warmupSets).toBe(5)
+  it('drops a hand-edited warm-up count instead of keeping it', () => {
+    const bundle = { opengym_plan: 1, name: 'x', routines: [{ id: 'r', name: 'R', ex: [{ id: '0025', sets: 3, reps: 5, warmupSets: 999, bodyweight: true, side: true }] }], week: {}, customEx: [] }
+    const ex = parsePlan(bundle).routines[0].ex[0]
+    expect(ex.warmupSets).toBeUndefined()
+    expect(ex.bodyweight).toBeUndefined()
+    expect(ex.side).toBeUndefined()
+    expect(ex.setWeights).toEqual([0, 0, 0])
   })
 
   // A plan file is someone else's data: a rest that arrives as a string would reach the timer's

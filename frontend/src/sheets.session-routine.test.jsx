@@ -57,8 +57,9 @@ describe('WorkoutDetail — save as routine', () => {
     const routine = useStore.getState().S.routines[0]
     expect(routine).toMatchObject({ name: 'Push' })
     expect(routine.ex.map(e => e.id)).toEqual(['bench', 'row'])
-    expect(routine.ex[0].side).toBe(true)
-    expect(routine.ex[0].warmupSets).toBe(1)
+    expect(routine.ex[0].side).toBeUndefined()
+    expect(routine.ex[0].warmupSets).toBeUndefined()
+    expect(routine.ex[0].setWeights).toEqual([45])
     expect(useStore.getState().S.workouts[0]).toEqual(saved)
     expect(navigated).toBe('/plan/r/' + routine.id)
   })

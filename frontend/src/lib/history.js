@@ -1,7 +1,7 @@
 // Pure helpers over the state object S (ported 1:1 from the vanilla app).
 import { todayISO, isoOf, weekKey, weekStartOf, fmtNum } from './format.js'
 import { fmtSpeed } from './speed.js'
-import { isCardio, isBodyweightEq, isAssisted, betterWeight } from './exercises.js'
+import { isCardio, isAssisted, betterWeight, isBodyweightEq } from './exercises.js'
 import { phaseForSet, modeForSet, modeForEntry, isWarmupRow, normalizeMode, completedVolumeOf, hasCompletedWork, nextDropWeight, splitBurstReps, makeSideSet, isSideSet, syncSideAggregate, WEIGHT_ORIGIN_MANUAL, dropsOf, clustersOf } from './workout-model.js'
 const objectOf = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 // Completed-state-independent work rows whose authoritative mode matches the requested mode.
@@ -46,7 +46,14 @@ export const isTimed = cfg => modeOf(cfg) === 'time'
 //                means the same thing beats two that need a legend.
 // Both are absent on every plan, workout and backup written before they existed, and absent
 // reads as false, so nothing needs migrating.
-export const isBw = cfg => (cfg && cfg.bodyweight != null ? !!cfg.bodyweight : isBodyweightEq(cfg && cfg.id))
+// Catalogue equipment still decides labels, plate math and balance. The plan no longer stores
+// the flag: every set has its own typed weight. An explicit flag, when an older slot still
+// has one, wins over the catalogue.
+export const isBw = cfg => {
+  if (!cfg) return false
+  if (cfg.bodyweight != null) return !!cfg.bodyweight
+  return isBodyweightEq(cfg.id)
+}
 export const isPerSide = cfg => !!(cfg && cfg.side)
 // What one side did, for display only. Half of an odd total is shown as it falls (8.5) rather
 // than rounded away: it means the sides were not even, which is worth seeing.
@@ -161,11 +168,17 @@ export function setLabel(id, s, cfg, speedUnit) {
 export function defaultConfig(id, mode) {
   const m = mode || modeOf({ id })
   if (m === 'cardio') return { sets: 1, min: 20, speed: 8 }
-  // Written only when it is true, so a barbell config is byte-for-byte what it was before
-  // the flag existed and a plan file gains nothing it does not need.
-  const bw = isBodyweightEq(id) ? { bodyweight: true } : {}
-  if (m === 'time') return { sets: 3, sec: 45, weight: 0, mode: 'time', ...bw }
-  return { sets: 3, reps: 10, weight: 0, mode: 'reps', ...bw }
+  if (m === 'time') return { sets: 3, sec: 45, weight: 0, mode: 'time' }
+  return { sets: 3, reps: 10, weight: 0, mode: 'reps' }
+}
+
+/** One weight per planned set. An older slot with a single `weight` repeats it across `sets`. */
+export function setWeightsOf(cfg) {
+  const listed = cfg && Array.isArray(cfg.setWeights) ? cfg.setWeights : null
+  if (listed && listed.length) return listed.map(w => Math.max(0, Number(w) || 0))
+  const n = Math.max(1, Math.round(Number(cfg && cfg.sets)) || 1)
+  const w = Math.max(0, Number(cfg && cfg.weight) || 0)
+  return Array.from({ length: n }, () => w)
 }
 // A double-progression range is stored as its top (`reps`) and its bottom (`repsMin`), and
 // reads as the range it is: "8–12". Printing the top alone made "Reps from 10, up to 15" read
@@ -431,23 +444,12 @@ export function nextTrainingDay(S, iso) {
   return null
 }
 /**
- * Build the rows a planned exercise starts a session with: its work sets, preceded by however
- * many warm-up sets the routine asks for (`cfg.warmupSets`, 0 by default so an existing plan
- * behaves exactly as before).
- *
- * The warm-ups are stacked with insertWarmupRow, one call each, so the ramp is the same one
- * the in-session "Add warm-up set" button produces: each row halves the gap left to the work
- * weight, giving 50% / 75% / 87.5% for three. `options.step` is the exercise's loading step,
- * passed in by the caller (see insertWarmupRow for why this module cannot read it itself).
+ * Build the rows a planned exercise starts a session with. Each row takes its own weight from
+ * `cfg.setWeights` when the plan lists one; a single `cfg.weight` is the older shape.
+ * `cfg.warmupSets` is ignored — planned warm-ups are not part of a routine anymore.
  */
 export function buildSets(S, cfg, options = {}) {
-  const rows = buildWorkSets(S, cfg, options)
-  const warm = Math.max(0, Math.min(MAX_PLANNED_WARMUPS, Math.round(cfg.warmupSets) || 0))
-  if (!warm) return rows
-  const mode = modeOf(cfg)
-  let out = rows
-  for (let i = 0; i < warm; i++) out = insertWarmupRow(out, mode, cfg, options.step)
-  return out
+  return buildWorkSets(S, cfg, options)
 }
 
 /** Beyond this a "warm-up" is its own workout; the config stepper stops here too. */
@@ -488,7 +490,8 @@ function buildWorkSets(S, cfg, options = {}) {
       // exercise from reps to time must not seed the duration from a rep count.
       const prev = prevAt(i)
       const carried = prev && prev.sec > 0 ? prev : null
-      sets.push({ sec: carried ? carried.sec : (cfg.sec || 45), w: carried ? (carried.w || 0) : (cfg.weight || 0), done: false })
+      const plannedW = setWeightsOf(cfg)[i] ?? 0
+      sets.push({ sec: carried ? carried.sec : (cfg.sec || 45), w: carried ? (carried.w || 0) : plannedW, done: false })
     }
     return sets
   }
@@ -503,9 +506,10 @@ function buildWorkSets(S, cfg, options = {}) {
     // A deload uses the routine's target weight; a routine that never set one (weight 0) falls
     // back to the last regular load rather than prescribing an empty bar.
     const lastRegular = last ? (last.sets[i] || last.sets[last.sets.length - 1]) : null
+    const plannedW = setWeightsOf(cfg)[i] ?? (cfg.weight || 0)
     const w = useTarget
-      ? (cfg.weight > 0 ? cfg.weight : (lastRegular && lastRegular.r > 0 ? lastRegular.w : cfg.weight))
-      : usable ? usable.w : (conf && conf.w > 0 ? conf.w : cfg.weight)
+      ? (plannedW > 0 ? plannedW : (lastRegular && lastRegular.r > 0 ? lastRegular.w : plannedW))
+      : usable ? usable.w : (conf && conf.w > 0 ? conf.w : plannedW)
     const row = { w, r: planReps || !usable ? cfg.reps : usable.r, done: false }
     // A unilateral exercise logs each side on its own (issue #60): the row splits into L/R,
     // each seeded with half the total reps at the same weight. When "last time" was itself a

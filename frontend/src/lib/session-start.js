@@ -25,7 +25,11 @@ export const startsFromLast = st => st?.startFrom === 'last'
  * the exercise is planned in: its own history comes first (#216) and its policy applies.
  * `noProg` builds the routine's own numbers with no prescription, as an excluded routine does.
  */
-export function buildPlannedEntry(st, cfg, routine, { noProg = false } = {}) {
+export function buildPlannedEntry(st, rawCfg, routine, { noProg = false } = {}) {
+  const cfg = { ...rawCfg }
+  delete cfg.bodyweight
+  delete cfg.warmupSets
+  delete cfg.repsMax
   // `plan` is kept on the entry purely so the workout can explain the number it chose.
   const plan = noProg ? { policy: 'off', kind: 'off' } : nextPrescription(st, cfg, routine)
   // The warm-up ramp and the prescription snap to the exercise's own increment (1.25 kg

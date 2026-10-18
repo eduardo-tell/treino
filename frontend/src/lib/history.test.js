@@ -317,10 +317,11 @@ describe('defaultConfig', () => {
     expect(defaultConfig(CARDIO)).toEqual({ sets: 1, min: 20, speed: 8 })
     expect(defaultConfig(LIFT, 'time')).toEqual({ sets: 3, sec: 45, weight: 0, mode: 'time' })
   })
-  it('seeds the bodyweight flag from the catalogue, and only when it is true', () => {
-    expect(defaultConfig(BW)).toEqual({ sets: 3, reps: 10, weight: 0, mode: 'reps', bodyweight: true })
-    expect(defaultConfig(BW, 'time')).toEqual({ sets: 3, sec: 45, weight: 0, mode: 'time', bodyweight: true })
+  it('does not mark an exercise bodyweight from the catalogue', () => {
+    expect(defaultConfig(BW)).toEqual({ sets: 3, reps: 10, weight: 0, mode: 'reps' })
+    expect(defaultConfig(BW, 'time')).toEqual({ sets: 3, sec: 45, weight: 0, mode: 'time' })
     expect('bodyweight' in defaultConfig(LIFT)).toBe(false)
+    expect('bodyweight' in defaultConfig(BW)).toBe(false)
   })
 })
 
@@ -447,28 +448,27 @@ describe('freestyleConfig', () => {
     ])
   })
 
-  it('prepends the planned warm-ups as a ramp toward the work weight', () => {
+  it('gives each set the weight saved for it and ignores a planned warm-up count', () => {
     const S = { exWeights: {}, workouts: [] }
-    const cfg = { id: '0025', mode: 'reps', sets: 2, reps: 5, weight: 100, warmupSets: 3 }
-    const rows = buildSets(S, cfg, { step: 2.5 })
-    expect(rows.map(r => r.w)).toEqual([50, 75, 87.5, 100, 100])
-    expect(rows.slice(0, 3).every(r => r.phase === 'warmup')).toBe(true)
-    expect(rows.slice(3).every(r => r.phase === undefined)).toBe(true)
+    const cfg = { id: '0025', mode: 'reps', sets: 2, reps: 5, weight: 100, setWeights: [80, 100], warmupSets: 3 }
+    const rows = buildSets(S, cfg, { step: 2.5, useTarget: true })
+    expect(rows.map(r => r.w)).toEqual([80, 100])
+    expect(rows.some(r => r.phase === 'warmup')).toBe(false)
   })
 
-  it('caps the planned warm-ups and ignores nonsense values', () => {
+  it('ignores a planned warm-up count on a single work set', () => {
     const S = { exWeights: {}, workouts: [] }
     const base = { id: '0025', mode: 'reps', sets: 1, reps: 5, weight: 100 }
-    expect(buildSets(S, { ...base, warmupSets: 99 }, { step: 2.5 }).filter(r => r.phase === 'warmup')).toHaveLength(5)
+    expect(buildSets(S, { ...base, warmupSets: 99 }, { step: 2.5 }).filter(r => r.phase === 'warmup')).toHaveLength(0)
     expect(buildSets(S, { ...base, warmupSets: -2 }, { step: 2.5 })).toHaveLength(1)
     expect(buildSets(S, { ...base, warmupSets: 'x' }, { step: 2.5 })).toHaveLength(1)
   })
 
-  it('keeps planned warm-ups out of the work-set count', () => {
+  it('does not turn a planned warm-up count into extra rows', () => {
     const S = { exWeights: {}, workouts: [] }
     const rows = buildSets(S, { id: '0025', mode: 'reps', sets: 3, reps: 5, weight: 100, warmupSets: 2 }, { step: 2.5 })
     const logged = { entries: [{ id: '0025', sets: rows.map(r => ({ ...r, done: true })) }] }
-    expect(logged.entries[0].sets).toHaveLength(5)
+    expect(logged.entries[0].sets).toHaveLength(3)
     expect(workSetsDone(logged)).toBe(3)
   })
 
@@ -563,9 +563,8 @@ describe('buildSets', () => {
     const S = { exWeights: {}, workouts: [{ d: '2026-01-01', entries: [{ id: LIFT, sets: [{ w: 60, r: 15, done: true }, { w: 62.5, r: 12, done: true }] }] }] }
     expect(buildSets(S, { id: LIFT, sets: 2, reps: 10, weight: 50 }, { planReps: true }))
       .toEqual([{ w: 60, r: 10, done: false }, { w: 62.5, r: 10, done: false }])
-    // Planned warm-ups copy the work row, so they follow the plan too.
     expect(buildSets(S, { id: LIFT, sets: 1, reps: 10, weight: 50, warmupSets: 1 }, { planReps: true, step: 2.5 }).map(s => s.r))
-      .toEqual([10, 10])
+      .toEqual([10])
   })
 
   it('keeps each side\'s carried weight and splits the plan\'s reps evenly with planReps', () => {

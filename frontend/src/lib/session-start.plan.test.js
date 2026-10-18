@@ -101,14 +101,15 @@ describe('a planned session opens at the plan\'s reps', () => {
     expect(reps(e)).toEqual([10, 10])
   })
 
-  it('with planned warm-ups, which follow the plan\'s reps too', () => {
+  it('with a leftover warm-up count, which adds no row', () => {
     const st = state([
       { id: 'A', name: 'A', ex: [{ id: BENCH, sets: 2, reps: 10, weight: 60, warmupSets: 1 }] },
       { id: 'B', name: 'B', ex: [{ id: BENCH, sets: 2, reps: 15, weight: 40 }] },
     ])
     train(st, ['B'])
     const [e] = start(st, ['A'])
-    expect(e.sets.filter(isWarmupRow).map(s => s.r)).toEqual([10])
+    expect(e.sets.filter(isWarmupRow)).toHaveLength(0)
+    expect(reps(e)).toEqual([10, 10])
   })
 
   it('on a combined day that holds the exercise twice, each block at its own plan', () => {
@@ -233,15 +234,17 @@ describe('an edited routine starts again from its new plan', () => {
 describe('bodyweight progression and a lift logged without a weight', () => {
   const PUSHUP = '0662'   // push-up — body-weight equipment
 
-  it('adds a set at the rep ceiling and keeps it: 2 × 10, 2 × 11, 3 × 10, 3 × 11, 4 × 10 (#33)', () => {
+  it('ignores a leftover bodyweight ceiling and keeps the planned set count', () => {
     const st = state([{ id: 'A', name: 'A', ex: [{ id: PUSHUP, sets: 2, reps: 10, repsMax: 11, weight: 0, bodyweight: true }] }])
     const shape = []
     for (let i = 0; i < 5; i++) {
       const [e] = start(st, ['A'])
       shape.push(`${work(e).length}x${reps(e)[0]}`)
+      expect(e.target.bodyweight).toBeUndefined()
+      expect(e.target.repsMax).toBeUndefined()
       train(st, ['A'])
     }
-    expect(shape).toEqual(['2x10', '2x11', '3x10', '3x11', '4x10'])
+    expect(shape).toEqual(['2x10', '2x11', '2x12', '2x13', '2x14'])
   })
 
   it('climbs reps on an ab wheel logged at 0 kg — it has no load to enter', () => {

@@ -7,13 +7,13 @@ import { isWarmupRow } from './workout-model.js'
 describe('buildSessionEntries', () => {
   const st = { unit: 'kg', workouts: [], exWeights: {}, routines: [] }
 
-  it('ramps the warm-ups on the exercise’s own increment, not the unit default', () => {
+  it('ignores a planned warm-up count and opens the work sets at the plan weight', () => {
     const r = { id: 'r', prog: 'off', ex: [{ id: '0025', sets: 3, reps: 5, weight: 60, inc: 1.25, warmupSets: 2 }] }
     const entries = buildSessionEntries(st, r)
-    const warm = entries[0].sets.filter(isWarmupRow).map(s => s.w)
-    expect(warm).toHaveLength(2)
-    for (const w of warm) expect(Math.round(w / 1.25 * 1000) / 1000 % 1).toBe(0)   // a multiple of 1.25
-    expect(entries[0].sets.filter(s => !isWarmupRow(s)).every(s => s.w === 60)).toBe(true)
+    expect(entries[0].sets.filter(isWarmupRow)).toHaveLength(0)
+    expect(entries[0].sets).toHaveLength(3)
+    expect(entries[0].sets.every(s => s.w === 60)).toBe(true)
+    expect(entries[0].target.warmupSets).toBeUndefined()
   })
 
   it('keeps the unit default for timed exercises, whose inc is seconds', () => {
@@ -80,10 +80,11 @@ describe('buildSessionEntries', () => {
     expect(buildSessionEntries(history([10, 10], { startFrom: 'last' }), { id: 'r', prog: 'linear', ex: [cfg] })[0].carried).toBeUndefined()
   })
 
-  it('warms up at the plan\'s reps, not at last session\'s', () => {
+  it('does not add a warm-up row from a leftover warmup count', () => {
     const cfg = { id: '0025', sets: 2, reps: 10, weight: 40, warmupSets: 1 }
     const [entry] = buildSessionEntries(history([15, 15]), { id: 'r', prog: 'linear', ex: [cfg] })
-    expect(entry.sets.map(s => [isWarmupRow(s) ? 'warm' : 'work', s.r])).toEqual([['warm', 10], ['work', 10], ['work', 10]])
+    expect(entry.sets.map(s => s.r)).toEqual([10, 10])
+    expect(entry.sets.some(isWarmupRow)).toBe(false)
   })
 
   it('splits the plan\'s reps evenly per side', () => {

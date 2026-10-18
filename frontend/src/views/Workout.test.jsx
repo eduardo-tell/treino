@@ -1053,15 +1053,16 @@ describe('saving progression settings unchanged', () => {
     expect(rows(following)).toEqual([[0, 14], [0, 14]])
   })
 
-  it('keeps a set the rep ceiling added, and the plan line still reads the plan', async () => {
+  it('ignores a leftover rep ceiling and keeps the planned set count', async () => {
     const st = history({ id: PUSHUP, sets: 2, reps: 10, repsMax: 11, weight: 0, bodyweight: true }, 2)
     const { before, opened, after } = await saveUnchanged(st)
-    expect(rows(before)).toEqual([[0, 10], [0, 10], [0, 10]])
+    expect(rows(before)).toEqual([[0, 12], [0, 12]])
     expect(opened.sets).toBe(2)
-    expect(rows(after)).toEqual([[0, 10], [0, 10], [0, 10]])
+    expect(opened.repsMax).toBeUndefined()
+    expect(rows(after)).toEqual([[0, 12], [0, 12]])
     expect(after.planned).toEqual(before.planned)
-    expect(container.querySelector('.planline')?.textContent).toBe('Plan: 2 × 10 · today 3 × 10')
-    expect(rows(next(st))).toEqual([[0, 11], [0, 11], [0, 11]])
+    expect(container.querySelector('.planline')?.textContent).toBe('Plan: 2 × 10 · today 2 × 12')
+    expect(rows(next(st))).toEqual([[0, 13], [0, 13]])
   })
 
   it('keeps the plan\'s weight when only the reps are edited, so the restart holds what was lifted', async () => {

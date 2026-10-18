@@ -1,6 +1,6 @@
 import { uid } from './format.js'
-import { defaultConfig, isBw, modeOf } from './history.js'
-import { isAssisted, isBodyweightEq, isCardio } from './exercises.js'
+import { defaultConfig, modeOf } from './history.js'
+import { isAssisted, isCardio } from './exercises.js'
 import { sessionsFor } from './progression.js'
 
 /**
@@ -74,21 +74,25 @@ export function deleteRoutine(s, id) {
  *
  * Picking the exercise that is already in the slot replaces nothing, and changes nothing.
  */
+function withoutRetiredFlags(slot) {
+  const out = { ...slot }
+  delete out.bodyweight
+  delete out.side
+  delete out.warmupSets
+  delete out.repsMax
+  return out
+}
+
 export function replaceSlotExercise(slot, id, S, rid) {
   const old = slot || {}
-  if (old.id === id) return { ...old }
+  if (old.id === id) return withoutRetiredFlags(old)
   if ((modeOf(old) === 'cardio') !== isCardio(id)) {
     const kept = ['sg', 'note', 'restSec'].filter(key => old[key] != null)
     return { id, ...defaultConfig(id), ...Object.fromEntries(kept.map(key => [key, old[key]])) }
   }
-  const { id: _replaced, bodyweight: _flag, assisted: _assisted, side: _side, ...carried } = old
+  const { id: _replaced, bodyweight: _flag, assisted: _assisted, side: _side, warmupSets: _warm, repsMax: _max, ...carried } = old
   const out = { id, ...carried }
   if (isCardio(id)) return out
-  if (isBw(old) !== isBodyweightEq(id)) {
-    out.weight = 0
-    // A rep ceiling belongs to bodyweight work: it adds sets where there is no load to add.
-    delete out.repsMax
-  }
   if (isAssisted(old) !== isAssisted(id)) out.weight = 0
   // The session the next prescription will read for this slot (nextPrescription), so the weight
   // put here is the one that session was planned at: the restart rule then sees no edit and
