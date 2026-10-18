@@ -1,7 +1,7 @@
 {
   "name": "openGym",
   "short_name": "openGym",
-  "description": "Acompanhamento de treino e peso corporal",
+  "description": "Acompanhamento de treino",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
