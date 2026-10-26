@@ -54,8 +54,7 @@ describe('planPrintHTML', () => {
   })
 })
 
-// The printout title-cases a name with the same class the screen uses (exerciseNameClass): the
-// lower-case packs get it back, German keeps its own casing.
+// The printout title-cases a name with the same class the screen uses (exerciseNameClass).
 describe('planPrintHTML exercise-name casing per language', () => {
   const packs = import.meta.glob('../exercise-names/*.js', { eager: true, import: 'default' })
   const nameClass = html => html.match(/<div class="ex-n ([^"]*)">/)?.[1].trim()

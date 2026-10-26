@@ -86,8 +86,7 @@ describe('Library favourites', () => {
   })
 })
 
-// #290 took the title-casing off every translated name; the packs stored lower-case then read
-// lower-case down the whole list. Only German's own casing is left alone.
+// The Portuguese names are stored lower-case and the list title-cases them.
 describe('Library exercise-name casing per language', () => {
   const packs = import.meta.glob('../exercise-names/*.js', { eager: true, import: 'default' })
   afterEach(() => _setLangState('en', {}, null, null))

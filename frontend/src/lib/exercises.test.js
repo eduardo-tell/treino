@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { matchExercise, normalizeStr } from './exercises.js'
+import { matchExercise, normalizeStr, EXIDX, imgSrc, gifSrc } from './exercises.js'
 import { _setLangState } from './i18n-core.js'
+import ptBR from '../exercise-names/pt-BR.js'
 
 describe('normalizeStr', () => {
   it('handles null, undefined and empty strings', () => {
@@ -134,5 +135,13 @@ describe('the exercise dataset', () => {
     const { EXDB } = await import('./exercises-data.js')
     const found = EXDB.filter(e => matchExercise(e, '45° leg press')).map(e => e.id)
     expect(found).toEqual(expect.arrayContaining(['0739', '1464', '0740']))
+  })
+
+  it('includes the plate-loaded machine row and its still', () => {
+    const ex = EXIDX['9001']
+    expect(ex).toMatchObject({ n: 'machine row', bp: 'back', eq: 'leverage machine', tg: 'lats' })
+    expect(ptBR['9001']).toBe('remada máquina')
+    expect(imgSrc(ex)).toBe('/exercises/remada-maquina.png')
+    expect(gifSrc(ex)).toBe('/exercises/remada-maquina.png')
   })
 })
