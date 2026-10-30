@@ -4,7 +4,7 @@
    itself lives in localStorage. `CACHE` carries the build hash (vite.config.js rewrites it), so
    every deploy is a new worker with its own cache and the previous build's files are dropped on
    activate; the media cache (`MEDIA`) is kept across builds. */
-const CACHE = 'opengym-rt-372a3ceca0'
+const CACHE = 'opengym-rt-1784f7873b'
 
 /* Exercise media (img/, gif/) lives in a cache of its own that outlives builds (#281). It used to
    share the build's cache, so every update swept every animation along with the old bundle, and

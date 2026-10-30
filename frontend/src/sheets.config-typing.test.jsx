@@ -100,10 +100,13 @@ describe('exercise settings: one weight per set', () => {
   })
   afterEach(() => { act(() => { mounted.splice(0).forEach(root => root.unmount()) }) })
   const labels = host => [...host.querySelectorAll('.stp-l')].map(l => l.textContent)
+  const setRows = host => [...host.querySelectorAll('.plan-set-table .setrow')]
 
-  it('lists a weight for each set and has no bodyweight, per-side or warm-up section', () => {
+  it('uses the workout set layout with weight, reps and completion for each planned set', () => {
     const { host } = renderConfig({ mode: 'time', sec: 45, weight: 10, bodyweight: true, side: true, warmupSets: 2 })
-    expect(labels(host)).toEqual(expect.arrayContaining(['Set 01', 'Set 02', 'Set 03']))
+    expect(setRows(host)).toHaveLength(3)
+    expect(host.querySelector('.plan-set-table .sethead .w-sp').textContent).toBe('Weight (kg)')
+    expect(host.querySelectorAll('.plan-set-table [role="checkbox"]')).toHaveLength(3)
     expect(labels(host)).not.toContain('Warm-up sets')
     expect(labels(host)).not.toContain('Added (kg)')
     expect(host.textContent).not.toContain('Bodyweight')
@@ -113,10 +116,18 @@ describe('exercise settings: one weight per set', () => {
 
   it('saves each set weight and drops the retired flags', () => {
     const { host, onSave } = renderConfig({ mode: 'reps', sets: 2, reps: 8, weight: 40, bodyweight: true, side: true, warmupSets: 2, repsMax: 20 })
-    act(() => type(field(host, 'Set 01'), '50'))
+    const rows = setRows(host)
+    expect(host.querySelector('.plan-set-table .sethead .r-sp').textContent).toBe('Reps')
+    expect(rows[0].querySelectorAll('input.num')).toHaveLength(2)
+    act(() => type(rows[0].querySelector('.stp.w input.num'), '50'))
+    act(() => type(rows[0].querySelector('.stp.r input.num'), '12'))
+    expect(rows[1].querySelector('.stp.r input.num').value).toBe('12')
+    act(() => rows[0].querySelector('[role="checkbox"]').click())
+    expect(rows[0].classList.contains('done')).toBe(true)
     act(() => save(host))
     const saved = onSave.mock.calls[0][0]
     expect(saved.setWeights).toEqual([50, 40])
+    expect(saved.reps).toBe(12)
     expect(saved.weight).toBe(40)
     expect(saved.sets).toBe(2)
     expect(saved.bodyweight).toBeUndefined()

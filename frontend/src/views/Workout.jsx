@@ -18,6 +18,7 @@ import { startFlow, exercisePicker, exConfigSheet, exerciseDetailSheet, finishWo
 import { effortColor } from '../lib/effort.js'
 import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
+import { SetHeader, SetStepperCell } from '../components/SetTable.jsx'
 import { defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
 import { buildPlannedEntry, plannedConfigOf, builtOutOfProgression } from '../lib/session-start.js'
@@ -260,14 +261,11 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // workout → Workout controls). The lean default keeps the sets and one "more" button; each
   // switch brings one of the old always-visible button rows back.
   const wc = workoutControls(S)
-  const cell = (s, i, col, cls) => (
-    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')}>
-      {wc.steppers && <button aria-label={t('Decrease')} onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
-      <span className="val"><NumberField decimal={col.dec} nullable={col.opt} value={viewOf(col, s[col.f]) ?? ''}
-        onChange={v => onField(i, col.f, col.store ? col.store(v) : v)} /></span>
-      {wc.steppers && <button aria-label={t('Increase')} onClick={() => bump(s, i, col, 1)}><Icon name="plus" /></button>}
-    </div>
-  )
+  const cell = (s, i, col, cls) => <SetStepperCell kind={cls} plain={!wc.steppers}
+    decimal={col.dec} nullable={col.opt} value={viewOf(col, s[col.f])}
+    onChange={v => onField(i, col.f, col.store ? col.store(v) : v)}
+    onDecrease={() => bump(s, i, col, -1)} onIncrease={() => bump(s, i, col, 1)}
+    decreaseLabel={t('Decrease')} increaseLabel={t('Increase')} />
   // Plate loading, per set row (lib/plates.js): which plates make THIS row's weight, from the
   // plates you own. 'pairs' splits what is beyond the bar per side, 'single' is one stack (a
   // belt, a sled), 'none' shows nothing. A unilateral row logs each side's own weight; a bar is
@@ -538,7 +536,8 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     <div className="card" style={{ marginTop: 10, marginBottom: 0 }}>
       {/* the header carries the same eff3/timed sizing as the rows, or the labels drift off their
           columns; over L/R rows it also has to skip the side badge that sits in front of the weight cell */}
-      <div className={'sethead' + (col3 ? ' eff3' : '') + (timed ? ' timed' : '') + (perSide ? ' per-side' : '') + (wc.steppers ? '' : ' plain')}><span className="n-sp" /><span className="w-sp">{col1.hd}</span>{col2 && <span className="r-sp">{col2.hd}</span>}{col3 && <span className="eff-sp">{col3.hd}</span>}{timed && <span className="ck-sp" />}<span className="ck-sp" /></div>
+      <SetHeader weightLabel={col1.hd} repsLabel={col2?.hd} effortLabel={col3?.hd}
+        timed={timed} perSide={perSide} plain={!wc.steppers} />
       {entry.sets.map((s, i) => {
         const warm = isWarmupRow(s)
         const warmBefore = i > 0 && isWarmupRow(entry.sets[i - 1])

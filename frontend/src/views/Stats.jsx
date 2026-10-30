@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { EXIDX, matchExercise, betterWeight } from '../lib/exercises.js'
-import { streakWeeks, setLabel, modeOf, effortOf, entriesForExercise, metricEntriesForExercise, metricModeForEntry, bestWeightForEntry, completedRepsOf, workoutDay } from '../lib/history.js'
+import { setLabel, modeOf, effortOf, entriesForExercise, metricEntriesForExercise, metricModeForEntry, bestWeightForEntry, completedRepsOf, workoutDay } from '../lib/history.js'
 import { fmtNum, fmtDate, fmtVol, todayISO, weekStartOf, exerciseNameText } from '../lib/format.js'
 import { speedUnitOf, speedLabel, toSpeed } from '../lib/speed.js'
 import { t, exerciseNameFor, exerciseNameClass, getLang } from '../lib/i18n.js'
@@ -451,8 +451,6 @@ export default function Stats() {
     <div className="tiles">
       <div className="tile"><div className="l"><Icon name="dumbbell" />{t('Workouts')}</div><div className="v">{workouts.length}</div></div>
       <div className="tile"><div className="l"><Icon name="calendar" />{t('This month')}</div><div className="v">{monthW}</div></div>
-      <div className="tile"><div className="l"><Icon name="flame" />{t('Week streak')}</div><div className="v">{streakWeeks(S)}</div></div>
-
     </div>
 
     <div className="card">

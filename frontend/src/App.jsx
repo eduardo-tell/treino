@@ -19,7 +19,6 @@ import Toast from './components/Toast.jsx'
 import RestTimer from './components/RestTimer.jsx'
 import TimerFlash from './components/TimerFlash.jsx'
 import Home from './views/Home.jsx'
-import CheckIn from './views/CheckIn.jsx'
 import Plan from './views/Plan.jsx'
 import RoutineEdit from './views/RoutineEdit.jsx'
 import Workout from './views/Workout.jsx'
@@ -113,7 +112,6 @@ function Shell() {
         <ErrorBoundary>
           <Routes>
             <Route path="/home" element={<Home />} />
-            {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
             <Route path="/plan" element={<Plan />} />
             <Route path="/plan/r/:id" element={<RoutineEdit />} />
             <Route path="/workout" element={<Workout />} />

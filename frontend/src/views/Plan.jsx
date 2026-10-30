@@ -10,7 +10,7 @@ import { deleteRoutine } from '../lib/routines.js'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 
-export default function Plan() {
+export function PlanRoutines() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
@@ -37,13 +37,7 @@ export default function Plan() {
     onConfirm: () => update(s => { deleteRoutine(s, r.id) })
   })
 
-  return <>
-    <div className="hdr">
-      <div><h1>{t('Plan')}</h1><div className="sub">{t('Routines')}</div></div>
-      <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
-    </div>
-
-    <div className="cols"><div>
+  return <div className="cols"><div>
       <div className="row between" style={{ marginTop: 22, marginBottom: 10 }}>
         <h4 className="sec" style={{ margin: 0 }}>{t('Routines')}</h4>
         <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New')}</Button>
@@ -68,5 +62,14 @@ export default function Plan() {
         <Button icon="sparkles" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
       </>}
     </div></div>
+}
+
+export default function Plan() {
+  return <>
+    <div className="hdr">
+      <div><h1>{t('Plan')}</h1><div className="sub">{t('Routines')}</div></div>
+      <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
+    </div>
+    <PlanRoutines />
   </>
 }

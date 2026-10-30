@@ -706,21 +706,6 @@ export function moveSupersetUnit(items, index, direction) {
 }
 export function unitOf(units, idx) { return units.find(u => u.includes(idx)) || [idx] }
 
-export function streakWeeks(S) {
-  if (!S.workouts.length) return 0
-  const ws = weekStartOf(S)
-  const weeks = new Set(S.workouts.map(w => weekKey(w.d, ws)))
-  let streak = 0
-  const cur = new Date()
-  for (let i = 0; i < 520; i++) {
-    const wk = weekKey(isoOf(cur), ws)
-    if (weeks.has(wk)) streak++
-    else if (i > 0) break
-    cur.setDate(cur.getDate() - 7)
-  }
-  return streak
-}
-
 /**
  * Cascade an explicit load edit through later inherited rows in the same phase.
  *

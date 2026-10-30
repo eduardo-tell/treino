@@ -20,7 +20,8 @@ import { syncMedia } from './lib/media-sync.js'
 import LineChart from './components/LineChart.jsx'
 import Stepper from './components/Stepper.jsx'
 import Icon from './components/Icon.jsx'
-import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, NumberField, MultiSelectRow } from './components/ui.jsx'
+import { Button, Slider, Switch, Segmented, SelectRow, Row, TextField, NumberField, MultiSelectRow, Check } from './components/ui.jsx'
+import { SetHeader, SetStepperCell } from './components/SetTable.jsx'
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
 import MuscleExplorer from './components/MuscleExplorer.jsx'
@@ -1356,6 +1357,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       ? { ...cfg, ...normalizeRepRange(cfg.reps, cfg.repsMin, 1) }
       : cfg
   })
+  const [finishedSets, setFinishedSets] = useState(() => new Set())
   // Cardio keeps its own duration+speed form; the reps/time choice (issue #16) is offered for
   // everything else, which is where the gap was — planks, hangs, wall sits, loaded carries.
   const mode = cardio ? 'cardio' : modeOf({ ...c, id: ex.id })
@@ -1415,14 +1417,32 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     next[i] = v
     return { ...x, setWeights: next, sets: next.length, weight: next[next.length - 1] || 0 }
   })
+  const setRepsAt = (i, v) => {
+    // Reps are still one exercise-level target, so changing any row changes every row and
+    // reopens all of their local "done editing" checks.
+    setFinishedSets(new Set())
+    setC(x => ({ ...x, reps: v }))
+  }
+  const changeWeightAt = (i, v) => {
+    setFinishedSets(done => { const next = new Set(done); next.delete(i); return next })
+    setWeightAt(i, v)
+  }
   const addSet = () => setC(x => {
     const next = [...setWeightsOf(x), setWeightsOf(x).at(-1) || 0]
     return { ...x, setWeights: next, sets: next.length, weight: next[next.length - 1] || 0 }
   })
-  const removeSet = i => setC(x => {
-    const next = setWeightsOf(x).filter((_, j) => j !== i)
-    const kept = next.length ? next : [0]
-    return { ...x, setWeights: kept, sets: kept.length, weight: kept[kept.length - 1] || 0 }
+  const removeSet = i => {
+    setFinishedSets(done => new Set([...done].filter(j => j !== i).map(j => j > i ? j - 1 : j)))
+    setC(x => {
+      const next = setWeightsOf(x).filter((_, j) => j !== i)
+      const kept = next.length ? next : [0]
+      return { ...x, setWeights: kept, sets: kept.length, weight: kept[kept.length - 1] || 0 }
+    })
+  }
+  const toggleFinished = i => setFinishedSets(done => {
+    const next = new Set(done)
+    next.has(i) ? next.delete(i) : next.add(i)
+    return next
   })
   return <>
     <h3 className={exerciseNameClass(ex)}>{exerciseNameFor(ex)}</h3>
@@ -1443,7 +1463,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       <Segmented className="seg-range" value={mode} onChange={setMode}
         options={[{ value: 'reps', label: t('Reps') }, { value: 'time', label: t('Time') }]} />
     </div>}
-    <div className="row cfgrow" style={{ marginBottom: mode === 'time' ? 8 : 18 }}>
+    {(cardio || mode === 'time') && <div className="row cfgrow" style={{ marginBottom: mode === 'time' ? 8 : 18 }}>
       {cardio ? <>
         <Stepper label={t('Intervals')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />
         <Stepper label={t('Minutes')} value={c.min} step={1} decimal={false} onChange={v => setC(x => ({ ...x, min: v }))} />
@@ -1452,16 +1472,28 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
           onChange={v => setC(x => ({ ...x, speed: fromSpeed(v, speedUnit) }))} />
       </> : mode === 'time' ? <>
         <Stepper label={t('Seconds')} value={c.sec} step={5} decimal={false} onChange={v => setC(x => ({ ...x, sec: v }))} />
-      </> : <>
-        {!double && <Stepper label={t('Reps')} value={c.reps} step={1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
-      </>}
-    </div>
+      </> : null}
+    </div>}
     {!cardio && <>
-      {weights.map((w, i) => <div key={i} className="row cfgrow" style={{ marginBottom: 8 }}>
-        <Stepper label={t('Set {0}', String(i + 1).padStart(2, '0'))} value={w} step={2.5}
-          onChange={v => setWeightAt(i, v)} />
-        {weights.length > 1 && <button type="button" className="iconbtn sm" aria-label={t('Remove')} onClick={() => removeSet(i)}><Icon name="xmark" /></button>}
-      </div>)}
+      <div className="card plan-set-table">
+        <SetHeader weightLabel={t('Weight ({0})', st.unit)} repsLabel={mode === 'reps' ? t('Reps') : null} />
+        {weights.map((w, i) => <div key={i} className={'setrow' + (finishedSets.has(i) ? ' done' : '')}>
+          <button type="button" className="n" aria-label={t('Set {0}', i + 1)}
+            title={weights.length > 1 ? t('Remove this set') : undefined}
+            onClick={weights.length > 1 ? () => removeSet(i) : undefined}>{i + 1}</button>
+          <SetStepperCell kind="w" value={w} decimal
+            onChange={v => changeWeightAt(i, v)}
+            onDecrease={() => changeWeightAt(i, Math.max(0, Math.round(((w || 0) - 2.5) * 100) / 100))}
+            onIncrease={() => changeWeightAt(i, Math.max(0, Math.round(((w || 0) + 2.5) * 100) / 100))}
+            decreaseLabel={t('Decrease')} increaseLabel={t('Increase')} />
+          {mode === 'reps' && <SetStepperCell kind="r" value={c.reps} decimal={false}
+            onChange={v => setRepsAt(i, v)}
+            onDecrease={() => setRepsAt(i, Math.max(0, Math.round((c.reps || 0) - 1)))}
+            onIncrease={() => setRepsAt(i, Math.max(0, Math.round((c.reps || 0) + 1)))}
+            decreaseLabel={t('Decrease')} increaseLabel={t('Increase')} />}
+          <Check checked={finishedSets.has(i)} onChange={() => toggleFinished(i)} label={t('Done')} />
+        </div>)}
+      </div>
       <Button size="sm" icon="plus" onClick={addSet}>{t('Add set')}</Button>
       <div style={{ height: 18 }} />
     </>}

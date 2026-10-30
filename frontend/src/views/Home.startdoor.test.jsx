@@ -9,7 +9,7 @@ import Home from './Home.jsx'
 const nav = vi.fn()
 vi.mock('react-router-dom', () => ({ useNavigate: () => nav }))
 vi.mock('../sheets.jsx', () => ({
-  starterPlanSheet: vi.fn(), calendarSheet: vi.fn(),
+  starterPlanSheet: vi.fn(), planToolsSheet: vi.fn(), confirmSheet: vi.fn(),
 }))
 
 const routines = [{ id: 'r1', name: 'Push', emoji: null, ex: [{ id: '0025' }] }]
@@ -40,6 +40,14 @@ describe('Home — start a workout', () => {
     expect(row.querySelector('.ttl').textContent).toBe('Start workout')
     act(() => { row.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
     expect(nav).toHaveBeenCalledWith('/workout')
+  })
+
+  it('shows the user routines on Home without check-in or weekly streak cards', () => {
+    setS(); mount()
+    expect(host.textContent).toContain('Routines')
+    expect(host.textContent).toContain('Push')
+    expect(host.textContent).not.toContain('Check in')
+    expect(host.textContent).not.toContain('week streak')
   })
 
   it('goes away as a chooser once a session is running — that row resumes it', () => {

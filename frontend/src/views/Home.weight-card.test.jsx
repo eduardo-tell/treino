@@ -7,7 +7,7 @@ import Home from './Home.jsx'
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('../sheets.jsx', () => ({
-  starterPlanSheet: vi.fn(), calendarSheet: vi.fn(),
+  starterPlanSheet: vi.fn(), planToolsSheet: vi.fn(), confirmSheet: vi.fn(),
 }))
 
 let host, root
